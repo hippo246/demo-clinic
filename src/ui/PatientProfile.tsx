@@ -3,7 +3,7 @@ import type { Patient, AuditEntry, UserRole, TimelineEvent, PatientNote, Patient
 import {
   fmtDate, getAvatarColor, getInitials, calcRiskScore,
   calcVisitReadiness, calcNextBestAction, buildSmartSnapshot,
-  createAuditEntry,
+  createAuditEntry, getClinicalAlerts, getClinicalRecommendations,
 } from "./utils";
 import { QUICK_ACTIONS, ALERT_SEVERITY, CONSENT_TYPES } from "./constants";
 import {
@@ -14,13 +14,15 @@ import { can } from "./constants";
 
 // ─── Tabs ─────────────────────────────────────────────────────────────────────
 const PROFILE_TABS = [
-  { id: "overview",  label: "Overview",   icon: "ti-layout-dashboard" },
-  { id: "timeline",  label: "Timeline",   icon: "ti-timeline" },
-  { id: "documents", label: "Documents",  icon: "ti-files" },
-  { id: "notes",     label: "Notes",      icon: "ti-notes" },
-  { id: "followup",  label: "Follow-Up",  icon: "ti-phone" },
-  { id: "consents",  label: "Consents",   icon: "ti-writing" },
-  { id: "audit",     label: "Audit Log",  icon: "ti-history" },
+  { id: "overview",      label: "Overview",      icon: "ti-layout-dashboard" },
+  { id: "timeline",      label: "Timeline",      icon: "ti-timeline" },
+  { id: "medical",       label: "Medical History", icon: "ti-heart-pulse" },
+  { id: "clinical",      label: "Clinical Support", icon: "ti-brain" },
+  { id: "documents",     label: "Documents",     icon: "ti-files" },
+  { id: "notes",         label: "Notes",         icon: "ti-notes" },
+  { id: "followup",      label: "Follow-Up",     icon: "ti-phone" },
+  { id: "consents",      label: "Consents",      icon: "ti-writing" },
+  { id: "audit",         label: "Audit Log",     icon: "ti-history" },
 ] as const;
 
 type TabId = typeof PROFILE_TABS[number]["id"];
@@ -147,7 +149,10 @@ export default function PatientProfile({
         setTab("documents");
         break;
       case "Create Invoice":
-        // Navigate to billing tab with this patient
+        // Navigate to billing page with this patient
+        onSelectPatient?.(patient);
+        // In a real app, this would navigate to the billing page
+        alert("Navigate to Billing page for " + patient.name);
         break;
       case "Call Patient":
         handleUpdateFollowUp({
@@ -213,7 +218,7 @@ export default function PatientProfile({
         )}
 
         {/* Identity row */}
-        <div style={{ padding: "14px 16px 10px", display: "flex", alignItems: "flex-start", gap: 12 }}>
+        <div style={{ padding: "14px 16px 10px", display: "flex", alignItems: "flex-start", gap: 12, flexWrap: "wrap" }}>
           <button className="btn btn-ghost" onClick={onBack} style={{ padding: "6px 10px", fontSize: "var(--font-sm)", flexShrink: 0 }}>
             <i className="ti ti-arrow-left" style={{ fontSize: 14 }} />
             <span className="desktop-only">Back</span>
@@ -245,25 +250,18 @@ export default function PatientProfile({
             </div>
             <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginTop: 4 }}>
               {[
-                { label: "ID",      value: patient.id,           icon: "ti-id" },
-                { label: "Age",     value: `${patient.age}y · ${patient.gender}`, icon: "ti-user" },
-                { label: "DOB",     value: fmtDate(patient.dob), icon: "ti-calendar" },
-                { label: "Blood",   value: patient.bloodGroup,   icon: "ti-droplet" },
-                { label: "Doctor",  value: patient.doctor,       icon: "ti-stethoscope" },
-              ].map(({ label, value, icon }) => (
-                <span key={label} style={{ fontSize: "var(--font-xs)", color: "var(--muted)", display: "flex", alignItems: "center", gap: 4 }}>
-                  <i className={`ti ${icon}`} style={{ fontSize: 11 }} />
-                  <strong style={{ color: "var(--text)" }}>{value}</strong>
-                </span>
+                { icon: "ti-calendar", label: calcAge(patient.dob) + " yrs" },
+                { icon: "ti-phone", label: patient.phone },
+                { icon: "ti-mail", label: patient.email },
+                { icon: "ti-map-pin", label: patient.city },
+              ].map((item) => (
+                <div key={item.label} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: "var(--font-sm)", color: "var(--muted)" }}>
+                  <i className={`ti ${item.icon}`} style={{ fontSize: 13 }} />
+                  <span className="desktop-only">{item.label}</span>
+                  <span className="mobile-only">{item.label}</span>
+                </div>
               ))}
             </div>
-
-            {/* Alert chips */}
-            {(patient.alerts || []).length > 0 && (
-              <div style={{ display: "flex", gap: 5, flexWrap: "wrap", marginTop: 6 }}>
-                {(patient.alerts || []).map((a) => <AlertChip key={a} alert={a} />)}
-              </div>
-            )}
           </div>
 
           {/* Right actions */}
@@ -286,26 +284,6 @@ export default function PatientProfile({
           </div>
         </div>
 
-        {/* NBA bar */}
-        {nba.urgency !== "none" && (
-          <div style={{
-            margin: "0 16px 10px",
-            padding: "8px 12px", borderRadius: "var(--radius)",
-            background: nba.bg, border: `1px solid ${nba.color}30`,
-            display: "flex", alignItems: "center", gap: 8,
-          }}>
-            <i className={`ti ${nba.icon}`} style={{ fontSize: 15, color: nba.color, flexShrink: 0 }} />
-            <div>
-              <span style={{ fontSize: "var(--font-sm)", fontWeight: 700, color: nba.color }}>
-                {nba.label}
-              </span>
-              <span style={{ fontSize: "var(--font-xs)", color: nba.color + "cc", marginLeft: 8 }}>
-                {nba.detail}
-              </span>
-            </div>
-          </div>
-        )}
-
         {/* Tab bar */}
         <div style={{ padding: "0 16px", display: "flex", gap: 2, overflowX: "auto" }}>
           {PROFILE_TABS.map(({ id, label, icon }) => (
@@ -325,7 +303,8 @@ export default function PatientProfile({
               }}
             >
               <i className={`ti ${icon}`} style={{ fontSize: 13 }} />
-              {label}
+              <span className="desktop-only">{label}</span>
+              <span className="mobile-only">{label.split(" ")[0]}</span>
               {tabCounts[id] !== undefined && tabCounts[id]! > 0 && (
                 <span style={{
                   fontSize: "var(--font-2xs)", fontWeight: 700, padding: "1px 5px",
@@ -346,6 +325,8 @@ export default function PatientProfile({
         <div className="fade-in" key={tab} style={{ padding: 16 }}>
           {tab === "overview"  && <OverviewTab patient={patient} role={role} onVerificationToggle={handleVerificationToggle} snapshot={snapshot} readiness={readiness} onQuickAction={setQuickAction} />}
           {tab === "timeline"  && <TimelineTab patient={patient} role={role} onAddEvent={handleAddTimelineEvent} onDeleteEvent={handleDeleteTimelineEvent} />}
+          {tab === "medical"   && <MedicalHistoryTab patient={patient} role={role} onUpdatePatient={onUpdatePatient} />}
+          {tab === "clinical"  && <ClinicalSupportTab patient={patient} />}
           {tab === "documents" && <DocumentsTab patient={patient} role={role} onAddDoc={handleAddDocument} onDeleteDoc={handleDeleteDocument} />}
           {tab === "notes"     && <NotesTab patient={patient} role={role} onAddNote={handleAddNote} onDeleteNote={handleDeleteNote} onTogglePin={handleToggleNotePin} />}
           {tab === "followup"  && <FollowUpTab patient={patient} onUpdate={handleUpdateFollowUp} />}
@@ -359,7 +340,10 @@ export default function PatientProfile({
       {showDelete && (
         <ConfirmDeleteModal
           patient={patient}
-          onConfirm={() => { onDeletePatient(patient.id); setShowDelete(false); }}
+          onConfirm={() => {
+            onDeletePatient?.();
+            setShowDelete(false);
+          }}
           onClose={() => setShowDelete(false)}
         />
       )}
@@ -397,7 +381,512 @@ function OverviewTab({
   onQuickAction: (a: string) => void;
 }) {
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "1fr 340px", gap: 16, alignItems: "start" }}>
+    <div style={{ display: "grid", gridTemplateColumns: "1fr 340px", gap: 16, alignItems: "start" }} className="desktop-only">
+      {/* Main col */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+
+        {/* Snapshot */}
+        <div className="card card-padded" style={{
+          background: "linear-gradient(135deg, var(--accent-soft) 0%, var(--surface) 100%)",
+          border: "1px solid var(--accent)30",
+        }}>
+          <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
+            <i className="ti ti-sparkles" style={{ fontSize: 16, color: "var(--accent)", flexShrink: 0, marginTop: 1 }} />
+            <div>
+              <div style={{ fontSize: "var(--font-xs)", fontWeight: 700, color: "var(--accent)", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 4 }}>
+                AI Snapshot
+              </div>
+              <div style={{ fontSize: "var(--font-sm)", color: "var(--text)", lineHeight: 1.6 }}>
+                {snapshot}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Quick Actions */}
+        <InfoCard title="Quick Actions" icon="ti-bolt" iconBg="var(--purple-bg)" iconColor="var(--purple)">
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8 }}>
+            {QUICK_ACTIONS.map((a) => (
+              <button key={a.label} onClick={() => onQuickAction(a.label)} style={{
+                display: "flex", flexDirection: "column", alignItems: "center", gap: 6,
+                padding: "12px 8px", borderRadius: "var(--radius)", border: "1px solid var(--border)",
+                background: "var(--surface2)", cursor: "pointer", transition: "all 0.15s",
+              }}>
+                <i className={`ti ${a.icon}`} style={{ fontSize: 18, color: a.color }} />
+                <span style={{ fontSize: "var(--font-xs)", fontWeight: 600, color: "var(--text)" }}>{a.label}</span>
+              </button>
+            ))}
+          </div>
+        </InfoCard>
+
+        {/* Visit Readiness */}
+        <InfoCard title="Visit Readiness" icon="ti-checklist" iconBg="var(--green-bg)" iconColor="var(--green)">
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            {readiness.items.map((item) => (
+              <button key={item.key} onClick={() => onVerificationToggle(item.key)} style={{
+                display: "flex", alignItems: "center", gap: 8, padding: "6px 8px",
+                borderRadius: "var(--radius-sm)", border: `1px solid ${item.done ? "var(--green-border)" : "var(--red-border)"}`,
+                background: item.done ? "var(--green-bg)" : "transparent",
+                cursor: "pointer", transition: "all 0.15s",
+              }}>
+                <i className={`ti ${item.done ? "ti-check" : "ti-circle"}`} style={{ fontSize: 12, color: item.done ? "var(--green)" : "var(--red)" }} />
+                <span style={{ fontSize: "var(--font-sm)", color: "var(--text)" }}>{item.label}</span>
+              </button>
+            ))}
+          </div>
+        </InfoCard>
+      </div>
+
+      {/* Sidebar */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+        <InfoCard title="Patient Info" icon="ti-user" iconBg="var(--blue-bg)" iconColor="var(--blue)">
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {[
+              { label: "ID", value: patient.id },
+              { label: "Age", value: `${patient.age} yrs` },
+              { label: "Gender", value: patient.gender },
+              { label: "Blood Group", value: patient.bloodGroup },
+              { label: "Phone", value: patient.phone },
+              { label: "Email", value: patient.email },
+            ].map((item) => (
+              <div key={item.label} style={{ display: "flex", justifyContent: "space-between", fontSize: "var(--font-sm)" }}>
+                <span style={{ color: "var(--muted)" }}>{item.label}</span>
+                <span style={{ fontWeight: 600 }}>{item.value}</span>
+              </div>
+            ))}
+          </div>
+        </InfoCard>
+
+        <InfoCard title="Insurance" icon="ti-shield" iconBg="var(--amber-bg)" iconColor="var(--amber)">
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: "var(--font-sm)" }}>
+              <span style={{ color: "var(--muted)" }}>Provider</span>
+              <span style={{ fontWeight: 600 }}>{patient.insurer || "—"}</span>
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: "var(--font-sm)" }}>
+              <span style={{ color: "var(--muted)" }}>Policy</span>
+              <span style={{ fontWeight: 600 }}>{patient.policyNumber || "—"}</span>
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: "var(--font-sm)" }}>
+              <span style={{ color: "var(--muted)" }}>Status</span>
+              <InsuranceBadge status={patient.insuranceStatus} />
+            </div>
+            {patient.insuranceExpiry && (
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: "var(--font-sm)" }}>
+                <span style={{ color: "var(--muted)" }}>Expiry</span>
+                <span style={{ fontWeight: 600 }}>{fmtDate(patient.insuranceExpiry)}</span>
+              </div>
+            )}
+          </div>
+        </InfoCard>
+      </div>
+    </div>
+
+    {/* Mobile version - single column */}
+    <div className="mobile-only" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+      {/* Snapshot */}
+      <div className="card card-padded" style={{
+        background: "linear-gradient(135deg, var(--accent-soft) 0%, var(--surface) 100%)",
+        border: "1px solid var(--accent)30",
+      }}>
+        <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
+          <i className="ti ti-sparkles" style={{ fontSize: 16, color: "var(--accent)", flexShrink: 0, marginTop: 1 }} />
+          <div>
+            <div style={{ fontSize: "var(--font-xs)", fontWeight: 700, color: "var(--accent)", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 4 }}>
+              AI Snapshot
+            </div>
+            <p style={{ fontSize: "var(--font-sm)", color: "var(--text)", lineHeight: 1.6 }}>
+              {snapshot}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Quick Actions */}
+      <InfoCard title="Quick Actions" icon="ti-bolt" iconBg="var(--purple-bg)" iconColor="var(--purple)">
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 8 }}>
+          {QUICK_ACTIONS.map((a) => (
+            <button key={a.label} onClick={() => onQuickAction(a.label)} style={{
+              display: "flex", flexDirection: "column", alignItems: "center", gap: 6,
+              padding: "12px 8px", borderRadius: "var(--radius)", border: "1px solid var(--border)",
+              background: "var(--surface2)", cursor: "pointer", transition: "all 0.15s",
+            }}>
+              <i className={`ti ${a.icon}`} style={{ fontSize: 18, color: a.color }} />
+              <span style={{ fontSize: "var(--font-xs)", fontWeight: 600, color: "var(--text)" }}>{a.label}</span>
+            </button>
+          ))}
+        </div>
+      </InfoCard>
+
+      {/* Visit Readiness */}
+      <InfoCard title="Visit Readiness" icon="ti-checklist" iconBg="var(--green-bg)" iconColor="var(--green)">
+        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          {readiness.items.map((item) => (
+            <button key={item.key} onClick={() => onVerificationToggle(item.key)} style={{
+              display: "flex", alignItems: "center", gap: 8, padding: "6px 8px",
+              borderRadius: "var(--radius-sm)", border: `1px solid ${item.done ? "var(--green-border)" : "var(--red-border)"}`,
+              background: item.done ? "var(--green-bg)" : "transparent",
+              cursor: "pointer", transition: "all 0.15s",
+            }}>
+              <i className={`ti ${item.done ? "ti-check" : "ti-circle"}`} style={{ fontSize: 12, color: item.done ? "var(--green)" : "var(--red)" }} />
+              <span style={{ fontSize: "var(--font-sm)", color: "var(--text)" }}>{item.label}</span>
+            </button>
+          ))}
+        </div>
+      </InfoCard>
+
+      {/* Patient Info */}
+      <InfoCard title="Patient Info" icon="ti-user" iconBg="var(--blue-bg)" iconColor="var(--blue)">
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {[
+            { label: "ID", value: patient.id },
+            { label: "Age", value: `${patient.age} yrs` },
+            { label: "Gender", value: patient.gender },
+            { label: "Blood Group", value: patient.bloodGroup },
+            { label: "Phone", value: patient.phone },
+            { label: "Email", value: patient.email },
+          ].map((item) => (
+            <div key={item.label} style={{ display: "flex", justifyContent: "space-between", fontSize: "var(--font-sm)" }}>
+              <span style={{ color: "var(--muted)" }}>{item.label}</span>
+              <span style={{ fontWeight: 600 }}>{item.value}</span>
+            </div>
+          ))}
+        </div>
+      </InfoCard>
+
+      {/* Insurance */}
+      <InfoCard title="Insurance" icon="ti-shield" iconBg="var(--amber-bg)" iconColor="var(--amber)">
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: "var(--font-sm)" }}>
+            <span style={{ color: "var(--muted)" }}>Provider</span>
+            <span style={{ fontWeight: 600 }}>{patient.insurer || "—"}</span>
+          </div>
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: "var(--font-sm)" }}>
+            <span style={{ color: "var(--muted)" }}>Policy</span>
+            <span style={{ fontWeight: 600 }}>{patient.policyNumber || "—"}</span>
+          </div>
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: "var(--font-sm)" }}>
+            <span style={{ color: "var(--muted)" }}>Status</span>
+            <InsuranceBadge status={patient.insuranceStatus} />
+          </div>
+          {patient.insuranceExpiry && (
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: "var(--font-sm)" }}>
+              <span style={{ color: "var(--muted)" }}>Expiry</span>
+              <span style={{ fontWeight: 600 }}>{fmtDate(patient.insuranceExpiry)}</span>
+            </div>
+          )}
+        </div>
+      </InfoCard>
+    </div>
+  );
+}
+
+// ─── Timeline Tab ─────────────────────────────────────────────────────────────
+function TimelineTab({
+  patient, role, onAddEvent, onDeleteEvent,
+}: {
+  patient: Patient;
+  role: UserRole;
+  onAddEvent: (e: Omit<TimelineEvent, "id">) => void;
+  onDeleteEvent: (id: string) => void;
+}) {
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState({ type: "", description: "", date: "" });
+
+  function submit() {
+    if (!form.type || !form.description || !form.date) return;
+    onAddEvent({ ...form, date });
+    setForm({ type: "", description: "", date: "" });
+    setShowForm(false);
+  }
+
+  return (
+    <div style={{ maxWidth: 800 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+        <span style={{ fontSize: "var(--font-md)", fontWeight: 700 }}>Clinical Timeline</span>
+        {can(role, "editPatient") && (
+          <button className="btn btn-primary" style={{ fontSize: "var(--font-sm)" }} onClick={() => setShowForm(true)}>
+            <i className="ti ti-plus" style={{ fontSize: 13 }} />
+            Add Event
+          </button>
+        )}
+      </div>
+
+      {showForm && (
+        <div className="card card-padded" style={{ marginBottom: 16, border: "1px solid var(--accent)40" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 10 }}>
+            <input
+              type="text"
+              value={form.type}
+              onChange={(e) => setForm({ ...form, type: e.target.value })}
+              placeholder="Event type"
+              style={{ fontSize: "var(--font-sm)" }}
+            />
+            <input
+              type="text"
+              value={form.description}
+              onChange={(e) => setForm({ ...form, description: e.target.value })}
+              placeholder="Description"
+              style={{ fontSize: "var(--font-sm)" }}
+            />
+            <input
+              type="date"
+              value={form.date}
+              onChange={(e) => setForm({ ...form, date: e.target.value })}
+              style={{ fontSize: "var(--font-sm)" }}
+            />
+          </div>
+          <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+            <button className="btn btn-primary" style={{ fontSize: "var(--font-sm)" }} onClick={submit}>Add Event</button>
+            <button className="btn btn-ghost" style={{ fontSize: "var(--font-sm)" }} onClick={() => setShowForm(false)}>Cancel</button>
+          </div>
+        </div>
+      )}
+
+      <div className="card" style={{ overflow: "hidden" }}>
+        {(patient.timeline || []).length === 0 ? (
+          <div className="empty-state">
+            <i className="ti ti-timeline empty-state-icon" />
+            <div className="empty-state-sub">No timeline events</div>
+          </div>
+        ) : (
+          <table className="tbl">
+            <thead>
+              <tr><th>Date</th><th>Type</th><th>Description</th><th>Actions</th></tr>
+            </thead>
+            <tbody>
+              {(patient.timeline || []).map((ev) => (
+                <tr key={ev.id} className="tbl-row">
+                  <td style={{ fontSize: "var(--font-sm)", fontWeight: 600 }}>
+                    {fmtDate(ev.date)}
+                  </td>
+                  <td style={{ fontSize: "var(--font-sm)" }}>{ev.type}</td>
+                  <td style={{ fontSize: "var(--font-sm)" }}>{ev.description}</td>
+                  <td>
+                    {can(role, "editPatient") && (
+                      <button className="btn-icon" style={{ padding: 4 }} onClick={() => onDeleteEvent(ev.id)}>
+                        <i className="ti ti-trash" style={{ fontSize: 12, color: "var(--red)" }} />
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Documents Tab ────────────────────────────────────────────────────────────
+function DocumentsTab({
+  patient, role, onAddDoc, onDeleteDoc,
+}: {
+  patient: Patient;
+  role: UserRole;
+  onAddDoc: (doc: Omit<PatientDocument, "id">) => void;
+  onDeleteDoc: (id: string) => void;
+}) {
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState({ type: "", name: "", date: "" });
+
+  function submit() {
+    if (!form.type || !form.name || !form.date) return;
+    onAddDoc({ ...form, date, verified: false });
+    setForm({ type: "", name: "", date: "" });
+    setShowForm(false);
+  }
+
+  return (
+    <div style={{ maxWidth: 800 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+        <span style={{ fontSize: "var(--font-md)", fontWeight: 700 }}>Documents</span>
+        {can(role, "editPatient") && (
+          <button className="btn btn-primary" style={{ fontSize: "var(--font-sm)" }} onClick={() => setShowForm(true)}>
+            <i className="ti ti-plus" style={{ fontSize: 13 }} /> Add Document
+          </button>
+        )}
+      </div>
+
+      {showForm && (
+        <div className="card card-padded" style={{ marginBottom: 16, border: "1px solid var(--accent)40" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 10 }}>
+            <select value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })} style={{ fontSize: "var(--font-sm)" }}>
+              <option value="">Select type...</option>
+              {DOCUMENT_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+            </select>
+            <input type="text" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Document name" style={{ fontSize: "var(--font-sm)" }} />
+            <input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} style={{ fontSize: "var(--font-sm)" }} />
+          </div>
+          <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+            <button className="btn btn-primary" style={{ fontSize: "var(--font-sm)" }} onClick={() => { onAddDoc(form); setShowForm(false); }}>
+              Add
+            </button>
+            <button className="btn btn-ghost" style={{ fontSize: "var(--font-sm)" }} onClick={() => setShowForm(false)}>Cancel</button>
+          </div>
+        </div>
+      )}
+
+      <div className="card" style={{ overflow: "hidden" }}>
+        {(patient.documents || []).length === 0 ? (
+          <div className="empty-state">
+            <i className="ti ti-files empty-state-icon" />
+            <div className="empty-state-sub">No documents</div>
+          </div>
+        ) : (
+          <table className="tbl">
+            <thead>
+              <tr><th>Type</th><th>Name</th><th>Date</th><th>Status</th><th>Actions</th></tr>
+            </thead>
+            <tbody>
+              {(patient.documents || []).map((doc) => (
+                <tr key={doc.id} className="tbl-row">
+                  <td style={{ fontSize: "var(--font-sm)" }}>{doc.type}</td>
+                  <td style={{ fontSize: "var(--font-sm)", fontWeight: 600 }}>{doc.name}</td>
+                  <td style={{ fontSize: "var(--font-sm)", color: "var(--muted)" }}>{fmtDate(doc.date)}</td>
+                  <td>
+                    <span className="tag" style={{ background: doc.verified ? "var(--green-bg)" : "var(--amber-bg)", color: doc.verified ? "var(--green)" : "var(--amber)" }}>
+                      {doc.verified ? "Verified" : "Pending"}
+                    </span>
+                  </td>
+                  <td>
+                    {can(role, "deleteDocument") && (
+                      <button className="btn-icon" style={{ padding: 3, marginLeft: "auto" }} onClick={() => onDeleteDoc(doc.id)}>
+                        <i className="ti ti-trash" style={{ fontSize: 12, color: "var(--red)" }} />
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Notes Tab ────────────────────────────────────────────────────────────────
+function NotesTab({
+  patient, role, onAddNote, onDeleteNote, onTogglePin,
+}: {
+  patient: Patient;
+  role: UserRole;
+  onAddNote: (n: Omit<PatientNote, "id">) => void;
+  onDeleteNote: (id: string) => void;
+  onTogglePin: (id: string) => void;
+}) {
+  const [showForm, setShowForm] = useState(false);
+  const [category, setCategory] = useState("general");
+  const [text, setText] = useState("");
+
+  const CATEGORIES = [
+    { id: "general", label: "General", color: "var(--blue)" },
+    { id: "clinical", label: "Clinical", color: "var(--green)" },
+    { id: "medication", label: "Medication", color: "var(--purple)" },
+    { id: "followup", label: "Follow-up", color: "var(--amber)" },
+  ];
+
+  function submit() {
+    if (!text.trim()) return;
+    onAddNote({ text, category, pinned: false, date: new Date().toISOString().split("T")[0] });
+    setText("");
+    setShowForm(false);
+  }
+
+  return (
+    <div style={{ maxWidth: 800 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+        <span style={{ fontSize: "var(--font-md)", fontWeight: 700 }}>Notes</span>
+        {can(role, "editPatient") && (
+          <button className="btn btn-primary" style={{ fontSize: "var(--font-sm)" }} onClick={() => setShowForm(true)}>
+            <i className="ti ti-plus" style={{ fontSize: 13 }} /> Add Note
+          </button>
+        )}
+      </div>
+
+      {showForm && (
+        <div className="card card-padded" style={{ marginBottom: 16, border: "1px solid var(--accent)40" }}>
+          <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
+            {CATEGORIES.map((c) => (
+              <button key={c.id} onClick={() => setCategory(c.id)} style={{
+                padding: "4px 10px", borderRadius: "var(--radius-full)", fontSize: "var(--font-xs)", fontWeight: 600,
+                border: `1px solid ${category === c.id ? c.color : "var(--border)"}`,
+                background: category === c.id ? c.color + "15" : "transparent",
+                color: category === c.id ? c.color : "var(--muted)",
+              }}>
+                {c.label}
+              </button>
+            ))}
+          </div>
+          <textarea
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            placeholder="Write a note..."
+            rows={3}
+            style={{ width: "100%", resize: "vertical" }}
+          />
+          <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+            <button className="btn btn-primary" style={{ fontSize: "var(--font-sm)" }} onClick={submit}>Save Note</button>
+            <button className="btn btn-ghost" style={{ fontSize: "var(--font-sm)" }} onClick={() => setShowForm(false)}>Cancel</button>
+          </div>
+        </div>
+      )}
+
+      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        {(patient.notes || []).length === 0 ? (
+          <div className="card card-padded">
+            <div className="empty-state">
+              <i className="ti ti-notes empty-state-icon" />
+              <div className="empty-state-sub">No notes yet</div>
+            </div>
+          </div>
+        ) : (
+          (patient.notes || [])
+            .sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0) || new Date(b.date).getTime() - new Date(a.date).getTime())
+            .map((n) => (
+              <div key={n.id} className="card card-padded" style={{ borderLeft: `3px solid ${CATEGORIES.find((c) => c.id === n.category)?.color || "var(--border)"}` }}>
+                <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8 }}>
+                  <p style={{ fontSize: "var(--font-sm)", color: "var(--text)", lineHeight: 1.6, flex: 1 }}>{n.text}</p>
+                  <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
+                    <button className="btn-icon" style={{ padding: 4 }} onClick={() => onTogglePin(n.id)}>
+                      <i className={`ti ${n.pinned ? "ti-pin-filled" : "ti-pin"}`} style={{ fontSize: 12, color: n.pinned ? "var(--amber)" : "var(--muted)" }} />
+                    </button>
+                    {can(role, "editPatient") && (
+                      <button className="btn-icon" style={{ padding: 4 }} onClick={() => onDeleteNote(n.id)}>
+                        <i className="ti ti-trash" style={{ fontSize: 12, color: "var(--red)" }} />
+                      </button>
+                    )}
+                  </div>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8, fontSize: "var(--font-xs)", color: "var(--muted)" }}>
+                  <span className="tag" style={{ background: CATEGORIES.find((c) => c.id === n.category)?.color + "15", color: CATEGORIES.find((c) => c.id === n.category)?.color }}>
+                    {CATEGORIES.find((c) => c.id === n.category)?.label}
+                  </span>
+                  <span>{fmtDate(n.date)}</span>
+                </div>
+              </div>
+            ))
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Overview Tab ─────────────────────────────────────────────────────────────
+function OverviewTab({
+  patient, role, onVerificationToggle, snapshot, readiness, onQuickAction
+}: {
+  patient: Patient;
+  role: UserRole;
+  onVerificationToggle: (key: string) => void;
+  snapshot: string;
+  readiness: ReturnType<typeof calcVisitReadiness>;
+  onQuickAction: (a: string) => void;
+}) {
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "1fr 340px", gap: 16, alignItems: "start" }} className="desktop-only">
       {/* Main col */}
       <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
 
@@ -612,6 +1101,216 @@ function OverviewTab({
           </div>
         )}
       </div>
+    </div>
+
+    {/* Mobile version - single column */}
+    <div className="mobile-only" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+      {/* Snapshot */}
+      <div className="card card-padded" style={{
+        background: "linear-gradient(135deg, var(--accent-soft) 0%, var(--surface) 100%)",
+        border: "1px solid var(--accent)30",
+      }}>
+        <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
+          <i className="ti ti-sparkles" style={{ fontSize: 16, color: "var(--accent)", flexShrink: 0, marginTop: 1 }} />
+          <div>
+            <div style={{ fontSize: "var(--font-xs)", fontWeight: 700, color: "var(--accent)", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 4 }}>
+              AI Snapshot
+            </div>
+            <p style={{ fontSize: "var(--font-sm)", color: "var(--text)", lineHeight: 1.6 }}>
+              {snapshot}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Demographics */}
+      <InfoCard title="Demographics" icon="ti-user" iconBg="var(--blue-bg)" iconColor="var(--blue)">
+        <InfoGrid cols={1} rows={[
+          ["Full Name",       patient.name],
+          ["Date of Birth",   fmtDate(patient.dob)],
+          ["Age",             `${patient.age} years`],
+          ["Gender",          patient.gender],
+          ["Blood Group",     patient.bloodGroup],
+          ["Nationality",     patient.nationality],
+          ["Phone",           patient.phone],
+          ["Email",           patient.email],
+          ["Address",         patient.address],
+        ]} />
+      </InfoCard>
+
+      {/* Emergency Contact */}
+      <InfoCard title="Emergency Contact" icon="ti-phone-call" iconBg="#fce7f3" iconColor="#9d174d">
+        {patient.emergencyName ? (
+          <InfoGrid cols={1} rows={[
+            ["Name",        patient.emergencyName],
+            ["Relation",    patient.emergencyRelation || "—"],
+            ["Phone",       patient.emergencyPhone],
+          ]} />
+        ) : (
+          <div className="empty-state" style={{ padding: "20px 0" }}>
+            <i className="ti ti-phone-off empty-state-icon" style={{ fontSize: 24 }} />
+            <div className="empty-state-sub">No emergency contact on file</div>
+          </div>
+        )}
+      </InfoCard>
+
+      {/* Medical (role-gated) */}
+      {can(role, "viewMedical") && (
+        <InfoCard title="Medical Information" icon="ti-heart-rate-monitor" iconBg="var(--red-bg)" iconColor="var(--red)">
+          <InfoGrid cols={1} rows={[
+            ["Allergies",    patient.allergies || "None known"],
+            ["Blood Group",  patient.bloodGroup],
+            ["Conditions",   (patient.conditions || []).join(", ") || "None"],
+            ["Medications",  (patient.medications || []).join(", ") || "None"],
+          ]} />
+        </InfoCard>
+      )}
+
+      {/* Insurance */}
+      {can(role, "viewBilling") && (
+        <InfoCard title="Insurance" icon="ti-shield" iconBg="var(--green-bg)" iconColor="var(--green)">
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+            <InsuranceBadge status={patient.insuranceStatus} />
+          </div>
+          {patient.insurer !== "None" ? (
+            <InfoGrid cols={1} rows={[
+              ["Provider",       patient.insurer],
+              ["Policy Number",  patient.policyNumber || "—"],
+              ["Expiry",         fmtDate(patient.insuranceExpiry)],
+            ]} />
+          ) : (
+            <p style={{ fontSize: "var(--font-sm)", color: "var(--muted)" }}>No insurance on file</p>
+          )}
+        </InfoCard>
+      )}
+
+      {/* Quick Actions */}
+      <InfoCard title="Quick Actions" icon="ti-bolt" iconBg="var(--purple-bg)" iconColor="var(--purple)">
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 8 }}>
+          {QUICK_ACTIONS.map((a) => (
+            <button key={a.label} onClick={() => onQuickAction(a.label)} style={{
+              display: "flex", flexDirection: "column", alignItems: "center", gap: 6,
+              padding: "12px 8px", borderRadius: "var(--radius)", border: "1px solid var(--border)",
+              background: "var(--surface2)", cursor: "pointer", transition: "all 0.15s",
+            }}
+            onMouseOver={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "var(--surface3)"; }}
+            onMouseOut={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "var(--surface2)"; }}
+            >
+              <div style={{
+                width: 32, height: 32, borderRadius: "var(--radius)",
+                background: a.color + "15", display: "flex", alignItems: "center", justifyContent: "center",
+              }}>
+                <i className={`ti ${a.icon}`} style={{ fontSize: 16, color: a.color }} />
+              </div>
+              <span style={{ fontSize: "var(--font-2xs)", fontWeight: 500, color: "var(--muted)", textAlign: "center", lineHeight: 1.3 }}>
+                {a.label}
+              </span>
+            </button>
+          ))}
+        </div>
+      </InfoCard>
+
+      {/* Visit Readiness */}
+      <div className="card card-padded">
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+          <span style={{ fontSize: "var(--font-sm)", fontWeight: 700 }}>Visit Readiness</span>
+          <span style={{
+            fontSize: "var(--font-xs)", fontWeight: 700,
+            color: readiness.ready ? "var(--green)" : "var(--amber)",
+            background: readiness.ready ? "var(--green-bg)" : "var(--amber-bg)",
+            padding: "2px 6px", borderRadius: "var(--radius-sm)",
+          }}>
+            {readiness.done}/{readiness.total}
+          </span>
+        </div>
+        <div className="progress-bar" style={{ marginBottom: 10 }}>
+          <div className="progress-fill" style={{
+            width: `${(readiness.done / readiness.total) * 100}%`,
+            background: readiness.ready ? "var(--green)" : "var(--amber)",
+          }} />
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          {readiness.items.map((item) => (
+            <button key={item.key} onClick={() => onVerificationToggle(item.key)} style={{
+              display: "flex", alignItems: "center", gap: 8, padding: "6px 8px",
+              borderRadius: "var(--radius-sm)", border: `1px solid ${item.done ? "var(--green-border)" : "var(--red-border)"}`,
+              background: item.done ? "var(--green-bg)" : "transparent",
+              cursor: "pointer", textAlign: "left", transition: "all 0.15s",
+            }}>
+              <VerifiedDot done={item.done} />
+              <span style={{ fontSize: "var(--font-xs)", color: item.done ? "var(--green)" : "var(--text)" }}>
+                {item.label}
+              </span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Appointments */}
+      <div className="card card-padded">
+        <div className="section-label">Appointments</div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span style={{ fontSize: "var(--font-xs)", color: "var(--muted)" }}>Last Visit</span>
+            <span style={{ fontSize: "var(--font-sm)", fontWeight: 600 }}>{fmtDate(patient.lastVisit)}</span>
+          </div>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span style={{ fontSize: "var(--font-xs)", color: "var(--muted)" }}>Next Appointment</span>
+            <span style={{ fontSize: "var(--font-sm)", fontWeight: 600 }}>
+              {patient.nextAppointment ? fmtDate(patient.nextAppointment) : (
+                <span style={{ color: "var(--amber)", fontSize: "var(--font-xs)" }}>Not scheduled</span>
+              )}
+            </span>
+          </div>
+          {patient.followUpDate && (
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span style={{ fontSize: "var(--font-xs)", color: "var(--muted)" }}>Follow-Up Due</span>
+              <span style={{ fontSize: "var(--font-sm)", fontWeight: 600, color: "var(--amber)" }}>
+                {fmtDate(patient.followUpDate)}
+              </span>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Family */}
+      {(patient.family || []).length > 0 && (
+        <div className="card card-padded">
+          <div className="section-label">Family Members</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            {(patient.family || []).map((f) => (
+              <div key={f.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 8px", borderRadius: "var(--radius-sm)", background: "var(--surface2)" }}>
+                <AvatarCircle name={f.name} size="sm" />
+                <div>
+                  <div style={{ fontSize: "var(--font-sm)", fontWeight: 600 }}>{f.name}</div>
+                  <div style={{ fontSize: "var(--font-xs)", color: "var(--muted)" }}>{f.relation}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Pinned notes */}
+      {(patient.notes || []).filter((n) => n.pinned).length > 0 && (
+        <div className="card card-padded">
+          <div className="section-label">
+            <i className="ti ti-pin" style={{ fontSize: 10, marginRight: 4 }} />
+            Pinned Notes
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            {(patient.notes || []).filter((n) => n.pinned).map((n) => (
+              <div key={n.id} style={{
+                padding: "8px 10px", borderRadius: "var(--radius-sm)",
+                background: "#fffbeb", border: "1px solid var(--amber-border)",
+                fontSize: "var(--font-xs)", color: "#92400e",
+              }}>
+                {n.text}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1060,6 +1759,878 @@ function FollowUpTab({ patient, onUpdate }: { patient: Patient; onUpdate: (u: Pa
             <i className="ti ti-phone" style={{ fontSize: 13 }} />
             Log Call
           </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Medical History Tab ─────────────────────────────────────────────────────────
+function MedicalHistoryTab({ patient, role, onUpdatePatient }: { patient: Patient; role: UserRole; onUpdatePatient: (p: Patient) => void }) {
+  const [activeSection, setActiveSection] = useState<"conditions" | "surgeries" | "hospitalizations" | "vaccinations" | "labresults" | "imaging" | "medications" | "vitals">("conditions");
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [formData, setFormData] = useState<any>({});
+
+  const medicalConditions = patient.medicalConditions || [];
+  const surgeries = patient.surgeries || [];
+  const hospitalizations = patient.hospitalizations || [];
+  const vaccinations = patient.vaccinations || [];
+  const labResults = patient.labResults || [];
+  const imagingRecords = patient.imagingRecords || [];
+  const medications = patient.medications || [];
+  const vitalSigns = patient.vitalSigns || [];
+
+  function handleAdd() {
+    const updatedPatient = { ...patient };
+    if (activeSection === "conditions") {
+      updatedPatient.medicalConditions = [...medicalConditions, { ...formData, id: Date.now().toString() }];
+    } else if (activeSection === "surgeries") {
+      updatedPatient.surgeries = [...surgeries, { ...formData, id: Date.now().toString() }];
+    } else if (activeSection === "hospitalizations") {
+      updatedPatient.hospitalizations = [...hospitalizations, { ...formData, id: Date.now().toString() }];
+    } else if (activeSection === "vaccinations") {
+      updatedPatient.vaccinations = [...vaccinations, { ...formData, id: Date.now().toString() }];
+    } else if (activeSection === "labresults") {
+      updatedPatient.labResults = [...labResults, { ...formData, id: Date.now().toString() }];
+    } else if (activeSection === "imaging") {
+      updatedPatient.imagingRecords = [...imagingRecords, { ...formData, id: Date.now().toString() }];
+    } else if (activeSection === "medications") {
+      updatedPatient.medications = [...medications, { ...formData, id: Date.now().toString() }];
+    } else if (activeSection === "vitals") {
+      updatedPatient.vitalSigns = [...vitalSigns, { ...formData, id: Date.now().toString() }];
+    }
+    onUpdatePatient(updatedPatient);
+    setShowAddForm(false);
+    setFormData({});
+  }
+
+  function handleDelete(id: string) {
+    const updatedPatient = { ...patient };
+    if (activeSection === "conditions") {
+      updatedPatient.medicalConditions = medicalConditions.filter((c: any) => c.id !== id);
+    } else if (activeSection === "surgeries") {
+      updatedPatient.surgeries = surgeries.filter((s: any) => s.id !== id);
+    } else if (activeSection === "hospitalizations") {
+      updatedPatient.hospitalizations = hospitalizations.filter((h: any) => h.id !== id);
+    } else if (activeSection === "vaccinations") {
+      updatedPatient.vaccinations = vaccinations.filter((v: any) => v.id !== id);
+    } else if (activeSection === "labresults") {
+      updatedPatient.labResults = labResults.filter((l: any) => l.id !== id);
+    } else if (activeSection === "imaging") {
+      updatedPatient.imagingRecords = imagingRecords.filter((i: any) => i.id !== id);
+    } else if (activeSection === "medications") {
+      updatedPatient.medications = medications.filter((m: any) => m.id !== id);
+    } else if (activeSection === "vitals") {
+      updatedPatient.vitalSigns = vitalSigns.filter((v: any) => v.id !== id);
+    }
+    onUpdatePatient(updatedPatient);
+  }
+
+  return (
+    <div style={{ maxWidth: 900 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+        <span style={{ fontSize: "var(--font-md)", fontWeight: 700 }}>Medical History</span>
+        {can(role, "editPatient") && (
+          <button className="btn btn-primary" style={{ fontSize: "var(--font-sm)" }} onClick={() => setShowAddForm(true)}>
+            <i className="ti ti-plus" style={{ fontSize: 13 }} /> Add Record
+          </button>
+        )}
+      </div>
+
+      {/* Section Tabs */}
+      <div style={{ display: "flex", gap: 4, marginBottom: 16, borderBottom: "1px solid var(--border)", overflowX: "auto" }}>
+        {[
+          { id: "conditions", label: "Conditions", count: medicalConditions.length },
+          { id: "surgeries", label: "Surgeries", count: surgeries.length },
+          { id: "hospitalizations", label: "Hospitalizations", count: hospitalizations.length },
+          { id: "vaccinations", label: "Vaccinations", count: vaccinations.length },
+          { id: "labresults", label: "Lab Results", count: labResults.length },
+          { id: "imaging", label: "Imaging", count: imagingRecords.length },
+          { id: "medications", label: "Medications", count: medications.length },
+          { id: "vitals", label: "Vital Signs", count: vitalSigns.length },
+        ].map((section) => (
+          <button
+            key={section.id}
+            onClick={() => { setActiveSection(section.id as any); setShowAddForm(false); }}
+            style={{
+              padding: "8px 16px",
+              borderBottom: `2px solid ${activeSection === section.id ? "var(--accent)" : "transparent"}`,
+              color: activeSection === section.id ? "var(--accent)" : "var(--muted)",
+              fontWeight: activeSection === section.id ? 600 : 400,
+              fontSize: "var(--font-sm)",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {section.label} ({section.count})
+          </button>
+        ))}
+      </div>
+
+      {/* Add Form */}
+      {showAddForm && (
+        <div className="card card-padded" style={{ marginBottom: 16, border: "1px solid var(--accent)40" }}>
+          <div className="section-label">Add {activeSection === "conditions" ? "Condition" : activeSection === "surgeries" ? "Surgery" : activeSection === "hospitalizations" ? "Hospitalization" : activeSection === "vaccinations" ? "Vaccination" : activeSection === "labresults" ? "Lab Result" : "Imaging Record"}</div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 10 }}>
+            {activeSection === "conditions" && (
+              <>
+                <div className="field-group">
+                  <label className="field-label">Condition Name *</label>
+                  <input type="text" value={formData.name || ""} onChange={(e) => setFormData({ ...formData, name: e.target.value })} placeholder="e.g., Diabetes Type 2" style={{ width: "100%" }} />
+                </div>
+                <div className="field-group">
+                  <label className="field-label">Diagnosis Date</label>
+                  <input type="date" value={formData.diagnosisDate || ""} onChange={(e) => setFormData({ ...formData, diagnosisDate: e.target.value })} style={{ width: "100%" }} />
+                </div>
+                <div className="field-group">
+                  <label className="field-label">Severity</label>
+                  <select value={formData.severity || "Moderate"} onChange={(e) => setFormData({ ...formData, severity: e.target.value })} style={{ width: "100%" }}>
+                    <option value="Mild">Mild</option>
+                    <option value="Moderate">Moderate</option>
+                    <option value="Severe">Severe</option>
+                    <option value="Critical">Critical</option>
+                  </select>
+                </div>
+                <div className="field-group">
+                  <label className="field-label">Status</label>
+                  <select value={formData.status || "Active"} onChange={(e) => setFormData({ ...formData, status: e.target.value })} style={{ width: "100%" }}>
+                    <option value="Active">Active</option>
+                    <option value="Chronic">Chronic</option>
+                    <option value="Resolved">Resolved</option>
+                  </select>
+                </div>
+              </>
+            )}
+            {activeSection === "surgeries" && (
+              <>
+                <div className="field-group">
+                  <label className="field-label">Surgery Name *</label>
+                  <input type="text" value={formData.name || ""} onChange={(e) => setFormData({ ...formData, name: e.target.value })} placeholder="e.g., Appendectomy" style={{ width: "100%" }} />
+                </div>
+                <div className="field-group">
+                  <label className="field-label">Date</label>
+                  <input type="date" value={formData.date || ""} onChange={(e) => setFormData({ ...formData, date: e.target.value })} style={{ width: "100%" }} />
+                </div>
+                <div className="field-group">
+                  <label className="field-label">Hospital</label>
+                  <input type="text" value={formData.hospital || ""} onChange={(e) => setFormData({ ...formData, hospital: e.target.value })} placeholder="Hospital name" style={{ width: "100%" }} />
+                </div>
+                <div className="field-group">
+                  <label className="field-label">Surgeon</label>
+                  <input type="text" value={formData.surgeon || ""} onChange={(e) => setFormData({ ...formData, surgeon: e.target.value })} placeholder="Surgeon name" style={{ width: "100%" }} />
+                </div>
+              </>
+            )}
+            {activeSection === "hospitalizations" && (
+              <>
+                <div className="field-group">
+                  <label className="field-label">Reason *</label>
+                  <input type="text" value={formData.reason || ""} onChange={(e) => setFormData({ ...formData, reason: e.target.value })} placeholder="e.g., Pneumonia" style={{ width: "100%" }} />
+                </div>
+                <div className="field-group">
+                  <label className="field-label">Admission Date</label>
+                  <input type="date" value={formData.admissionDate || ""} onChange={(e) => setFormData({ ...formData, admissionDate: e.target.value })} style={{ width: "100%" }} />
+                </div>
+                <div className="field-group">
+                  <label className="field-label">Discharge Date</label>
+                  <input type="date" value={formData.dischargeDate || ""} onChange={(e) => setFormData({ ...formData, dischargeDate: e.target.value })} style={{ width: "100%" }} />
+                </div>
+                <div className="field-group">
+                  <label className="field-label">Hospital</label>
+                  <input type="text" value={formData.hospital || ""} onChange={(e) => setFormData({ ...formData, hospital: e.target.value })} placeholder="Hospital name" style={{ width: "100%" }} />
+                </div>
+              </>
+            )}
+            {activeSection === "vaccinations" && (
+              <>
+                <div className="field-group">
+                  <label className="field-label">Vaccine Name *</label>
+                  <input type="text" value={formData.name || ""} onChange={(e) => setFormData({ ...formData, name: e.target.value })} placeholder="e.g., COVID-19 Vaccine" style={{ width: "100%" }} />
+                </div>
+                <div className="field-group">
+                  <label className="field-label">Date</label>
+                  <input type="date" value={formData.date || ""} onChange={(e) => setFormData({ ...formData, date: e.target.value })} style={{ width: "100%" }} />
+                </div>
+                <div className="field-group">
+                  <label className="field-label">Dose</label>
+                  <input type="text" value={formData.dose || ""} onChange={(e) => setFormData({ ...formData, dose: e.target.value })} placeholder="e.g., 1st dose" style={{ width: "100%" }} />
+                </div>
+                <div className="field-group">
+                  <label className="field-label">Next Due</label>
+                  <input type="date" value={formData.nextDue || ""} onChange={(e) => setFormData({ ...formData, nextDue: e.target.value })} style={{ width: "100%" }} />
+                </div>
+              </>
+            )}
+            {activeSection === "labresults" && (
+              <>
+                <div className="field-group">
+                  <label className="field-label">Test Name *</label>
+                  <input type="text" value={formData.testName || ""} onChange={(e) => setFormData({ ...formData, testName: e.target.value })} placeholder="e.g., Complete Blood Count" style={{ width: "100%" }} />
+                </div>
+                <div className="field-group">
+                  <label className="field-label">Test Date</label>
+                  <input type="date" value={formData.testDate || ""} onChange={(e) => setFormData({ ...formData, testDate: e.target.value })} style={{ width: "100%" }} />
+                </div>
+                <div className="field-group">
+                  <label className="field-label">Result *</label>
+                  <input type="text" value={formData.result || ""} onChange={(e) => setFormData({ ...formData, result: e.target.value })} placeholder="e.g., 12.5 g/dL" style={{ width: "100%" }} />
+                </div>
+                <div className="field-group">
+                  <label className="field-label">Unit</label>
+                  <input type="text" value={formData.unit || ""} onChange={(e) => setFormData({ ...formData, unit: e.target.value })} placeholder="e.g., g/dL" style={{ width: "100%" }} />
+                </div>
+                <div className="field-group">
+                  <label className="field-label">Reference Range</label>
+                  <input type="text" value={formData.referenceRange || ""} onChange={(e) => setFormData({ ...formData, referenceRange: e.target.value })} placeholder="e.g., 12.0-16.0" style={{ width: "100%" }} />
+                </div>
+                <div className="field-group">
+                  <label className="field-label">Status</label>
+                  <select value={formData.status || "Pending"} onChange={(e) => setFormData({ ...formData, status: e.target.value })} style={{ width: "100%" }}>
+                    <option value="Pending">Pending</option>
+                    <option value="Completed">Completed</option>
+                    <option value="Abnormal">Abnormal</option>
+                    <option value="Critical">Critical</option>
+                  </select>
+                </div>
+              </>
+            )}
+            {activeSection === "imaging" && (
+              <>
+                <div className="field-group">
+                  <label className="field-label">Imaging Type *</label>
+                  <select value={formData.type || "X-Ray"} onChange={(e) => setFormData({ ...formData, type: e.target.value })} style={{ width: "100%" }}>
+                    <option value="X-Ray">X-Ray</option>
+                    <option value="CT">CT Scan</option>
+                    <option value="MRI">MRI</option>
+                    <option value="Ultrasound">Ultrasound</option>
+                    <option value="PET">PET Scan</option>
+                  </select>
+                </div>
+                <div className="field-group">
+                  <label className="field-label">Body Part *</label>
+                  <input type="text" value={formData.bodyPart || ""} onChange={(e) => setFormData({ ...formData, bodyPart: e.target.value })} placeholder="e.g., Chest" style={{ width: "100%" }} />
+                </div>
+                <div className="field-group">
+                  <label className="field-label">Date</label>
+                  <input type="date" value={formData.date || ""} onChange={(e) => setFormData({ ...formData, date: e.target.value })} style={{ width: "100%" }} />
+                </div>
+                <div className="field-group">
+                  <label className="field-label">Radiologist</label>
+                  <input type="text" value={formData.radiologist || ""} onChange={(e) => setFormData({ ...formData, radiologist: e.target.value })} placeholder="Radiologist name" style={{ width: "100%" }} />
+                </div>
+                <div className="field-group">
+                  <label className="field-label">Status</label>
+                  <select value={formData.status || "Pending"} onChange={(e) => setFormData({ ...formData, status: e.target.value })} style={{ width: "100%" }}>
+                    <option value="Pending">Pending</option>
+                    <option value="Completed">Completed</option>
+                    <option value="Reviewed">Reviewed</option>
+                  </select>
+                </div>
+              </>
+            )}
+            {activeSection === "medications" && (
+              <>
+                <div className="field-group">
+                  <label className="field-label">Drug Name *</label>
+                  <input type="text" value={formData.name || ""} onChange={(e) => setFormData({ ...formData, name: e.target.value })} placeholder="e.g., Paracetamol" style={{ width: "100%" }} />
+                </div>
+                <div className="field-group">
+                  <label className="field-label">Dosage *</label>
+                  <input type="text" value={formData.dosage || ""} onChange={(e) => setFormData({ ...formData, dosage: e.target.value })} placeholder="e.g., 500mg" style={{ width: "100%" }} />
+                </div>
+                <div className="field-group">
+                  <label className="field-label">Frequency *</label>
+                  <input type="text" value={formData.frequency || ""} onChange={(e) => setFormData({ ...formData, frequency: e.target.value })} placeholder="e.g., Twice daily" style={{ width: "100%" }} />
+                </div>
+                <div className="field-group">
+                  <label className="field-label">Route</label>
+                  <select value={formData.route || "Oral"} onChange={(e) => setFormData({ ...formData, route: e.target.value })} style={{ width: "100%" }}>
+                    <option value="Oral">Oral</option>
+                    <option value="Injection">Injection</option>
+                    <option value="Topical">Topical</option>
+                    <option value="Inhalation">Inhalation</option>
+                    <option value="IV">IV</option>
+                  </select>
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                  <div className="field-group">
+                    <label className="field-label">Start Date</label>
+                    <input type="date" value={formData.startDate || ""} onChange={(e) => setFormData({ ...formData, startDate: e.target.value })} style={{ width: "100%" }} />
+                  </div>
+                  <div className="field-group">
+                    <label className="field-label">End Date</label>
+                    <input type="date" value={formData.endDate || ""} onChange={(e) => setFormData({ ...formData, endDate: e.target.value })} style={{ width: "100%" }} />
+                  </div>
+                </div>
+                <div className="field-group">
+                  <label className="field-label">Status</label>
+                  <select value={formData.status || "Active"} onChange={(e) => setFormData({ ...formData, status: e.target.value })} style={{ width: "100%" }}>
+                    <option value="Active">Active</option>
+                    <option value="Discontinued">Discontinued</option>
+                    <option value="Completed">Completed</option>
+                  </select>
+                </div>
+              </>
+            )}
+            {activeSection === "vitals" && (
+              <>
+                <div className="field-group">
+                  <label className="field-label">Vital Type *</label>
+                  <select value={formData.type || "Blood Pressure"} onChange={(e) => setFormData({ ...formData, type: e.target.value })} style={{ width: "100%" }}>
+                    <option value="Blood Pressure">Blood Pressure</option>
+                    <option value="Heart Rate">Heart Rate</option>
+                    <option value="Temperature">Temperature</option>
+                    <option value="Respiratory Rate">Respiratory Rate</option>
+                    <option value="Oxygen Saturation">Oxygen Saturation</option>
+                    <option value="Weight">Weight</option>
+                    <option value="Height">Height</option>
+                    <option value="BMI">BMI</option>
+                  </select>
+                </div>
+                <div className="field-group">
+                  <label className="field-label">Value *</label>
+                  <input type="text" value={formData.value || ""} onChange={(e) => setFormData({ ...formData, value: e.target.value })} placeholder="e.g., 120/80 mmHg" style={{ width: "100%" }} />
+                </div>
+                <div className="field-group">
+                  <label className="field-label">Unit</label>
+                  <input type="text" value={formData.unit || ""} onChange={(e) => setFormData({ ...formData, unit: e.target.value })} placeholder="e.g., mmHg, bpm, °C" style={{ width: "100%" }} />
+                </div>
+                <div className="field-group">
+                  <label className="field-label">Date</label>
+                  <input type="date" value={formData.date || ""} onChange={(e) => setFormData({ ...formData, date: e.target.value })} style={{ width: "100%" }} />
+                </div>
+              </>
+            )}
+          </div>
+          <div className="field-group" style={{ marginTop: 10 }}>
+            <label className="field-label">Notes</label>
+            <textarea value={formData.notes || ""} onChange={(e) => setFormData({ ...formData, notes: e.target.value })} placeholder="Additional notes..." rows={2} style={{ width: "100%", resize: "vertical" }} />
+          </div>
+          <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+            <button className="btn btn-primary" style={{ fontSize: "var(--font-sm)" }} onClick={handleAdd}>Save</button>
+            <button className="btn btn-ghost" style={{ fontSize: "var(--font-sm)" }} onClick={() => setShowAddForm(false)}>Cancel</button>
+          </div>
+        </div>
+      )}
+
+      {/* Content */}
+      {activeSection === "conditions" && (
+        medicalConditions.length === 0 ? (
+          <div className="empty-state">
+            <i className="ti ti-heart-pulse empty-state-icon" />
+            <div className="empty-state-text">No conditions recorded</div>
+            <div className="empty-state-sub">Add medical conditions to track patient health</div>
+          </div>
+        ) : (
+          <div className="card" style={{ overflow: "hidden" }}>
+            <table className="tbl">
+              <thead>
+                <tr><th>Condition</th><th>Diagnosed</th><th>Severity</th><th>Status</th><th>Actions</th></tr>
+              </thead>
+              <tbody>
+                {medicalConditions.map((c: any) => (
+                  <tr key={c.id} className="tbl-row">
+                    <td style={{ fontWeight: 600, fontSize: "var(--font-sm)" }}>{c.name}</td>
+                    <td style={{ fontSize: "var(--font-sm)", color: "var(--muted)" }}>{fmtDate(c.diagnosisDate)}</td>
+                    <td><span className="tag" style={{ background: c.severity === "Critical" ? "var(--red-bg)" : c.severity === "Severe" ? "var(--amber-bg)" : "var(--green-bg)", color: c.severity === "Critical" ? "var(--red)" : c.severity === "Severe" ? "var(--amber)" : "var(--green)" }}>{c.severity}</span></td>
+                    <td><span className="tag" style={{ background: c.status === "Active" ? "var(--blue-bg)" : c.status === "Chronic" ? "var(--purple-bg)" : "var(--green-bg)", color: c.status === "Active" ? "var(--blue)" : c.status === "Chronic" ? "var(--purple)" : "var(--green)" }}>{c.status}</span></td>
+                    <td>{can(role, "editPatient") && <button className="btn-icon" style={{ padding: 4 }} onClick={() => handleDelete(c.id)}><i className="ti ti-trash" style={{ fontSize: 12, color: "var(--red)" }} /></button>}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )
+      )}
+
+      {activeSection === "surgeries" && (
+        surgeries.length === 0 ? (
+          <div className="empty-state">
+            <i className="ti ti-surgery empty-state-icon" />
+            <div className="empty-state-text">No surgeries recorded</div>
+            <div className="empty-state-sub">Add surgical history for comprehensive care</div>
+          </div>
+        ) : (
+          <div className="card" style={{ overflow: "hidden" }}>
+            <table className="tbl">
+              <thead>
+                <tr><th>Surgery</th><th>Date</th><th>Hospital</th><th>Surgeon</th><th>Actions</th></tr>
+              </thead>
+              <tbody>
+                {surgeries.map((s: any) => (
+                  <tr key={s.id} className="tbl-row">
+                    <td style={{ fontWeight: 600, fontSize: "var(--font-sm)" }}>{s.name}</td>
+                    <td style={{ fontSize: "var(--font-sm)", color: "var(--muted)" }}>{fmtDate(s.date)}</td>
+                    <td style={{ fontSize: "var(--font-sm)", color: "var(--muted)" }}>{s.hospital}</td>
+                    <td style={{ fontSize: "var(--font-sm)", color: "var(--muted)" }}>{s.surgeon}</td>
+                    <td>{can(role, "editPatient") && <button className="btn-icon" style={{ padding: 4 }} onClick={() => handleDelete(s.id)}><i className="ti ti-trash" style={{ fontSize: 12, color: "var(--red)" }} /></button>}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )
+      )}
+
+      {activeSection === "hospitalizations" && (
+        hospitalizations.length === 0 ? (
+          <div className="empty-state">
+            <i className="ti ti-building-hospital empty-state-icon" />
+            <div className="empty-state-text">No hospitalizations recorded</div>
+            <div className="empty-state-sub">Add hospitalization history for complete records</div>
+          </div>
+        ) : (
+          <div className="card" style={{ overflow: "hidden" }}>
+            <table className="tbl">
+              <thead>
+                <tr><th>Reason</th><th>Admission</th><th>Discharge</th><th>Hospital</th><th>Actions</th></tr>
+              </thead>
+              <tbody>
+                {hospitalizations.map((h: any) => (
+                  <tr key={h.id} className="tbl-row">
+                    <td style={{ fontWeight: 600, fontSize: "var(--font-sm)" }}>{h.reason}</td>
+                    <td style={{ fontSize: "var(--font-sm)", color: "var(--muted)" }}>{fmtDate(h.admissionDate)}</td>
+                    <td style={{ fontSize: "var(--font-sm)", color: "var(--muted)" }}>{h.dischargeDate ? fmtDate(h.dischargeDate) : "—"}</td>
+                    <td style={{ fontSize: "var(--font-sm)", color: "var(--muted)" }}>{h.hospital}</td>
+                    <td>{can(role, "editPatient") && <button className="btn-icon" style={{ padding: 4 }} onClick={() => handleDelete(h.id)}><i className="ti ti-trash" style={{ fontSize: 12, color: "var(--red)" }} /></button>}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )
+      )}
+
+      {activeSection === "vaccinations" && (
+        vaccinations.length === 0 ? (
+          <div className="empty-state">
+            <i className="ti ti-vaccine empty-state-icon" />
+            <div className="empty-state-text">No vaccinations recorded</div>
+            <div className="empty-state-sub">Track vaccination history for preventive care</div>
+          </div>
+        ) : (
+          <div className="card" style={{ overflow: "hidden" }}>
+            <table className="tbl">
+              <thead>
+                <tr><th>Vaccine</th><th>Date</th><th>Dose</th><th>Next Due</th><th>Actions</th></tr>
+              </thead>
+              <tbody>
+                {vaccinations.map((v: any) => (
+                  <tr key={v.id} className="tbl-row">
+                    <td style={{ fontWeight: 600, fontSize: "var(--font-sm)" }}>{v.name}</td>
+                    <td style={{ fontSize: "var(--font-sm)", color: "var(--muted)" }}>{fmtDate(v.date)}</td>
+                    <td style={{ fontSize: "var(--font-sm)", color: "var(--muted)" }}>{v.dose}</td>
+                    <td style={{ fontSize: "var(--font-sm)", color: "var(--muted)" }}>{v.nextDue ? fmtDate(v.nextDue) : "—"}</td>
+                    <td>{can(role, "editPatient") && <button className="btn-icon" style={{ padding: 4 }} onClick={() => handleDelete(v.id)}><i className="ti ti-trash" style={{ fontSize: 12, color: "var(--red)" }} /></button>}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )
+      )}
+
+      {activeSection === "labresults" && (
+        labResults.length === 0 ? (
+          <div className="empty-state">
+            <i className="ti ti-test-tubes empty-state-icon" />
+            <div className="empty-state-text">No lab results recorded</div>
+            <div className="empty-state-sub">Add lab results to track patient diagnostics</div>
+          </div>
+        ) : (
+          <div className="card" style={{ overflow: "hidden" }}>
+            <table className="tbl">
+              <thead>
+                <tr><th>Test Name</th><th>Date</th><th>Result</th><th>Reference</th><th>Status</th><th>Actions</th></tr>
+              </thead>
+              <tbody>
+                {labResults.map((l: any) => (
+                  <tr key={l.id} className="tbl-row">
+                    <td style={{ fontWeight: 600, fontSize: "var(--font-sm)" }}>{l.testName}</td>
+                    <td style={{ fontSize: "var(--font-sm)", color: "var(--muted)" }}>{fmtDate(l.testDate)}</td>
+                    <td style={{ fontSize: "var(--font-sm)" }}>{l.result} {l.unit}</td>
+                    <td style={{ fontSize: "var(--font-xs)", color: "var(--muted)" }}>{l.referenceRange}</td>
+                    <td><span className="tag" style={{ background: l.status === "Critical" ? "var(--red-bg)" : l.status === "Abnormal" ? "var(--amber-bg)" : l.status === "Completed" ? "var(--green-bg)" : "var(--surface3)", color: l.status === "Critical" ? "var(--red)" : l.status === "Abnormal" ? "var(--amber)" : l.status === "Completed" ? "var(--green)" : "var(--muted)" }}>{l.status}</span></td>
+                    <td>{can(role, "editPatient") && <button className="btn-icon" style={{ padding: 4 }} onClick={() => handleDelete(l.id)}><i className="ti ti-trash" style={{ fontSize: 12, color: "var(--red)" }} /></button>}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )
+      )}
+
+      {activeSection === "imaging" && (
+        imagingRecords.length === 0 ? (
+          <div className="empty-state">
+            <i className="ti ti-scan empty-state-icon" />
+            <div className="empty-state-text">No imaging records</div>
+            <div className="empty-state-sub">Add imaging records for radiology history</div>
+          </div>
+        ) : (
+          <div className="card" style={{ overflow: "hidden" }}>
+            <table className="tbl">
+              <thead>
+                <tr><th>Type</th><th>Body Part</th><th>Date</th><th>Radiologist</th><th>Status</th><th>Actions</th></tr>
+              </thead>
+              <tbody>
+                {imagingRecords.map((i: any) => (
+                  <tr key={i.id} className="tbl-row">
+                    <td style={{ fontWeight: 600, fontSize: "var(--font-sm)" }}>{i.type}</td>
+                    <td style={{ fontSize: "var(--font-sm)", color: "var(--muted)" }}>{i.bodyPart}</td>
+                    <td style={{ fontSize: "var(--font-sm)", color: "var(--muted)" }}>{fmtDate(i.date)}</td>
+                    <td style={{ fontSize: "var(--font-sm)", color: "var(--muted)" }}>{i.radiologist}</td>
+                    <td><span className="tag" style={{ background: i.status === "Reviewed" ? "var(--green-bg)" : i.status === "Completed" ? "var(--blue-bg)" : "var(--surface3)", color: i.status === "Reviewed" ? "var(--green)" : i.status === "Completed" ? "var(--blue)" : "var(--muted)" }}>{i.status}</span></td>
+                    <td>{can(role, "editPatient") && <button className="btn-icon" style={{ padding: 4 }} onClick={() => handleDelete(i.id)}><i className="ti ti-trash" style={{ fontSize: 12, color: "var(--red)" }} /></button>}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )
+      )}
+
+      {activeSection === "medications" && (
+        medications.length === 0 ? (
+          <div className="empty-state">
+            <i className="ti ti-pills empty-state-icon" />
+            <div className="empty-state-text">No medications prescribed</div>
+            <div className="empty-state-sub">Add medications to track prescriptions</div>
+          </div>
+        ) : (
+          <div className="card" style={{ overflow: "hidden" }}>
+            <table className="tbl">
+              <thead>
+                <tr><th>Drug</th><th>Dosage</th><th>Frequency</th><th>Route</th><th>Period</th><th>Status</th><th>Actions</th></tr>
+              </thead>
+              <tbody>
+                {medications.map((m: any) => (
+                  <tr key={m.id} className="tbl-row">
+                    <td style={{ fontWeight: 600, fontSize: "var(--font-sm)" }}>{m.name}</td>
+                    <td style={{ fontSize: "var(--font-sm)" }}>{m.dosage}</td>
+                    <td style={{ fontSize: "var(--font-sm)" }}>{m.frequency}</td>
+                    <td style={{ fontSize: "var(--font-sm)", color: "var(--muted)" }}>{m.route}</td>
+                    <td style={{ fontSize: "var(--font-xs)", color: "var(--muted)" }}>{m.startDate ? `${fmtDate(m.startDate)} - ${m.endDate ? fmtDate(m.endDate) : 'Ongoing'}` : "—"}</td>
+                    <td><span className="tag" style={{ background: m.status === "Active" ? "var(--green-bg)" : m.status === "Discontinued" ? "var(--red-bg)" : "var(--blue-bg)", color: m.status === "Active" ? "var(--green)" : m.status === "Discontinued" ? "var(--red)" : "var(--blue)" }}>{m.status}</span></td>
+                    <td>{can(role, "editPatient") && <button className="btn-icon" style={{ padding: 4 }} onClick={() => handleDelete(m.id)}><i className="ti ti-trash" style={{ fontSize: 12, color: "var(--red)" }} /></button>}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )
+      )}
+
+      {activeSection === "vitals" && (
+        vitalSigns.length === 0 ? (
+          <div className="empty-state">
+            <i className="ti ti-heartbeat empty-state-icon" />
+            <div className="empty-state-text">No vital signs recorded</div>
+            <div className="empty-state-sub">Add vital signs to track patient health trends</div>
+          </div>
+        ) : (
+          <div className="card" style={{ overflow: "hidden" }}>
+            <table className="tbl">
+              <thead>
+                <tr><th>Type</th><th>Value</th><th>Unit</th><th>Date</th><th>Trend</th><th>Actions</th></tr>
+              </thead>
+              <tbody>
+                {vitalSigns.sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime()).map((v: any, index: number) => {
+                  // Simple trend calculation based on previous entry of same type
+                  const sameTypeVitals = vitalSigns.filter((vs: any) => vs.type === v.type).sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime());
+                  const currentIndex = sameTypeVitals.findIndex((sv: any) => sv.id === v.id);
+                  const prevVital = currentIndex > 0 ? sameTypeVitals[currentIndex - 1] : null;
+                  let trend = "—";
+                  let trendColor = "var(--muted)";
+                  
+                  if (prevVital && v.value && prevVital.value) {
+                    const currentVal = parseFloat(v.value);
+                    const prevVal = parseFloat(prevVital.value);
+                    if (!isNaN(currentVal) && !isNaN(prevVal)) {
+                      if (currentVal > prevVal) {
+                        trend = "↑ Increasing";
+                        trendColor = "var(--red)";
+                      } else if (currentVal < prevVal) {
+                        trend = "↓ Decreasing";
+                        trendColor = "var(--green)";
+                      } else {
+                        trend = "→ Stable";
+                        trendColor = "var(--blue)";
+                      }
+                    }
+                  }
+                  
+                  return (
+                    <tr key={v.id} className="tbl-row">
+                      <td style={{ fontWeight: 600, fontSize: "var(--font-sm)" }}>{v.type}</td>
+                      <td style={{ fontSize: "var(--font-sm)" }}>{v.value}</td>
+                      <td style={{ fontSize: "var(--font-sm)", color: "var(--muted)" }}>{v.unit}</td>
+                      <td style={{ fontSize: "var(--font-sm)", color: "var(--muted)" }}>{fmtDate(v.date)}</td>
+                      <td style={{ fontSize: "var(--font-xs)", color: trendColor, fontWeight: 600 }}>{trend}</td>
+                      <td>{can(role, "editPatient") && <button className="btn-icon" style={{ padding: 4 }} onClick={() => handleDelete(v.id)}><i className="ti ti-trash" style={{ fontSize: 12, color: "var(--red)" }} /></button>}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )
+      )}
+    </div>
+  );
+}
+
+// ─── Clinical Support Helper Functions ─────────────────────────────────────────────
+function analyzeDrugInteractions(medications: string[]) {
+  const interactions: { drug1: string; drug2: string; severity: "severe" | "moderate" | "mild"; description: string }[] = [];
+  
+  // Common drug interactions database (simplified)
+  const knownInteractions: { [key: string]: { severity: "severe" | "moderate" | "mild"; description: string } } = {
+    "warfarin-aspirin": { severity: "severe", description: "Increased risk of bleeding" },
+    "warfarin-ibuprofen": { severity: "severe", description: "Increased risk of bleeding" },
+    "ace-inhibitors-potassium": { severity: "moderate", description: "Risk of hyperkalemia" },
+    "ssris-maois": { severity: "severe", description: "Serotonin syndrome risk" },
+    "digoxin-verapamil": { severity: "moderate", description: "Increased digoxin levels" },
+    "metformin-contrast": { severity: "severe", description: "Lactic acidosis risk" },
+  };
+
+  // Check for interactions (simplified logic)
+  for (let i = 0; i < medications.length; i++) {
+    for (let j = i + 1; j < medications.length; j++) {
+      const key = `${medications[i].toLowerCase()}-${medications[j].toLowerCase()}`;
+      const reverseKey = `${medications[j].toLowerCase()}-${medications[i].toLowerCase()}`;
+      
+      if (knownInteractions[key]) {
+        interactions.push({
+          drug1: medications[i],
+          drug2: medications[j],
+          ...knownInteractions[key]
+        });
+      } else if (knownInteractions[reverseKey]) {
+        interactions.push({
+          drug1: medications[j],
+          drug2: medications[i],
+          ...knownInteractions[reverseKey]
+        });
+      }
+    }
+  }
+
+  return interactions;
+}
+
+function analyzeLabResults(labResults: any[]) {
+  return labResults.map(lab => ({
+    testName: lab.testName,
+    result: lab.result,
+    unit: lab.unit,
+    referenceRange: lab.referenceRange,
+    status: lab.status === "Critical" ? "Critical" : lab.status === "Abnormal" ? "Abnormal" : "Normal"
+  }));
+}
+
+// ─── Clinical Support Tab ────────────────────────────────────────────────────────
+function ClinicalSupportTab({ patient }: { patient: Patient }) {
+  const clinicalAlerts = getClinicalAlerts(patient.vitalSigns || []);
+  const recommendations = getClinicalRecommendations(patient);
+  const riskScore = calcRiskScore(patient);
+
+  // Drug interaction analysis
+  const drugInteractions = analyzeDrugInteractions(patient.medications || []);
+  
+  // Lab result analysis
+  const labAnalysis = analyzeLabResults(patient.labResults || []);
+
+  return (
+    <div style={{ maxWidth: 900 }}>
+      <div style={{ marginBottom: 24 }}>
+        <span style={{ fontSize: "var(--font-md)", fontWeight: 700 }}>Clinical Decision Support</span>
+        <div style={{ fontSize: "var(--font-sm)", color: "var(--muted)", marginTop: 4 }}>
+          AI-powered clinical alerts, drug interactions, and treatment recommendations
+        </div>
+      </div>
+
+      {/* Risk Assessment Dashboard */}
+      <div className="card card-padded" style={{ marginBottom: 24, background: "linear-gradient(135deg, var(--surface) 0%, var(--surface2) 100%)" }}>
+        <div className="section-label" style={{ marginBottom: 12 }}>
+          <i className="ti ti-shield-check" style={{ marginRight: 6 }} /> Risk Assessment
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, marginBottom: 16 }}>
+          <div style={{ padding: 16, borderRadius: "var(--radius)", background: "var(--surface3)", textAlign: "center" }}>
+            <div style={{ fontSize: 32, fontWeight: 800, color: riskScore.color }}>{riskScore.score}</div>
+            <div style={{ fontSize: "var(--font-xs)", color: "var(--muted)", marginTop: 4 }}>Risk Score</div>
+          </div>
+          <div style={{ padding: 16, borderRadius: "var(--radius)", background: "var(--surface3)", textAlign: "center" }}>
+            <div style={{ fontSize: 24, fontWeight: 800, color: riskScore.color }}>{riskScore.level}</div>
+            <div style={{ fontSize: "var(--font-xs)", color: "var(--muted)", marginTop: 4 }}>Risk Level</div>
+          </div>
+          <div style={{ padding: 16, borderRadius: "var(--radius)", background: "var(--surface3)", textAlign: "center" }}>
+            <div style={{ fontSize: 24, fontWeight: 800 }}>{(patient.alerts || []).length}</div>
+            <div style={{ fontSize: "var(--font-xs)", color: "var(--muted)", marginTop: 4 }}>Active Alerts</div>
+          </div>
+        </div>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {patient.alerts?.map((alert, index) => (
+            <span key={index} className="tag" style={{ 
+              background: alert === "Critical" ? "var(--red-bg)" : alert === "High Risk" ? "var(--amber-bg)" : "var(--blue-bg)",
+              color: alert === "Critical" ? "var(--red)" : alert === "High Risk" ? "var(--amber)" : "var(--blue)"
+            }}>{alert}</span>
+          ))}
+        </div>
+      </div>
+
+      {/* Clinical Alerts */}
+      <div className="card card-padded" style={{ marginBottom: 24 }}>
+        <div className="section-label" style={{ marginBottom: 12 }}>
+          <i className="ti ti-alert-triangle" style={{ marginRight: 6 }} /> Clinical Alerts
+        </div>
+        {clinicalAlerts.length === 0 ? (
+          <div style={{ padding: 20, textAlign: "center", color: "var(--muted)", fontSize: "var(--font-sm)" }}>
+            No critical alerts based on current vital signs
+          </div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {clinicalAlerts.map((alert, index) => (
+              <div
+                key={index}
+                style={{
+                  padding: 12,
+                  borderRadius: "var(--radius)",
+                  background: alert.severity === "critical" ? "var(--red-bg)" : alert.severity === "high" ? "var(--amber-bg)" : "var(--blue-bg)",
+                  borderLeft: `3px solid ${alert.severity === "critical" ? "var(--red)" : alert.severity === "high" ? "var(--amber)" : "var(--blue)"}`,
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                  <span style={{ fontWeight: 600, fontSize: "var(--font-sm)", color: alert.severity === "critical" ? "var(--red)" : alert.severity === "high" ? "var(--amber)" : "var(--blue)" }}>
+                    {alert.severity === "critical" && "⚠️ CRITICAL"}
+                    {alert.severity === "high" && "⚠️ HIGH PRIORITY"}
+                    {alert.severity === "medium" && "ℹ️ INFO"}
+                  </span>
+                  <span style={{ fontSize: "var(--font-xs)", color: "var(--muted)" }}>{fmtDate(alert.date)}</span>
+                </div>
+                <div style={{ fontSize: "var(--font-sm)", marginTop: 4 }}>{alert.message}</div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Drug Interaction Warnings */}
+      <div className="card card-padded" style={{ marginBottom: 24 }}>
+        <div className="section-label" style={{ marginBottom: 12 }}>
+          <i className="ti ti-pills" style={{ marginRight: 6 }} /> Drug Interaction Analysis
+        </div>
+        {drugInteractions.length === 0 ? (
+          <div style={{ padding: 20, textAlign: "center", color: "var(--muted)", fontSize: "var(--font-sm)" }}>
+            No drug interactions detected
+          </div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {drugInteractions.map((interaction, index) => (
+              <div
+                key={index}
+                style={{
+                  padding: 12,
+                  borderRadius: "var(--radius)",
+                  background: interaction.severity === "severe" ? "var(--red-bg)" : interaction.severity === "moderate" ? "var(--amber-bg)" : "var(--blue-bg)",
+                  border: `1px solid ${interaction.severity === "severe" ? "var(--red-border)" : interaction.severity === "moderate" ? "var(--amber-border)" : "var(--blue-border)"}`,
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                  <span style={{ fontWeight: 600, fontSize: "var(--font-sm)", color: interaction.severity === "severe" ? "var(--red)" : interaction.severity === "moderate" ? "var(--amber)" : "var(--blue)" }}>
+                    {interaction.severity.toUpperCase()}: {interaction.drug1} + {interaction.drug2}
+                  </span>
+                </div>
+                <div style={{ fontSize: "var(--font-sm)", marginTop: 4 }}>{interaction.description}</div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Lab Results Analysis */}
+      <div className="card card-padded" style={{ marginBottom: 24 }}>
+        <div className="section-label" style={{ marginBottom: 12 }}>
+          <i className="ti ti-test-tubes" style={{ marginRight: 6 }} /> Lab Results Analysis
+        </div>
+        {labAnalysis.length === 0 ? (
+          <div style={{ padding: 20, textAlign: "center", color: "var(--muted)", fontSize: "var(--font-sm)" }}>
+            No lab results available for analysis
+          </div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {labAnalysis.map((lab, index) => (
+              <div
+                key={index}
+                style={{
+                  padding: 12,
+                  borderRadius: "var(--radius)",
+                  background: lab.status === "Critical" ? "var(--red-bg)" : lab.status === "Abnormal" ? "var(--amber-bg)" : "var(--green-bg)",
+                  border: `1px solid ${lab.status === "Critical" ? "var(--red-border)" : lab.status === "Abnormal" ? "var(--amber-border)" : "var(--green-border)"}`,
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                  <span style={{ fontWeight: 600, fontSize: "var(--font-sm)" }}>{lab.testName}</span>
+                  <span style={{ fontSize: "var(--font-xs)", color: lab.status === "Critical" ? "var(--red)" : lab.status === "Abnormal" ? "var(--amber)" : "var(--green)" }}>
+                    {lab.status}
+                  </span>
+                </div>
+                <div style={{ fontSize: "var(--font-sm)", marginTop: 4 }}>{lab.result} {lab.unit} (Ref: {lab.referenceRange})</div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Treatment Recommendations */}
+      <div className="card card-padded" style={{ marginBottom: 24 }}>
+        <div className="section-label" style={{ marginBottom: 12 }}>
+          <i className="ti ti-clipboard-list" style={{ marginRight: 6 }} /> Treatment Recommendations
+        </div>
+        {recommendations.length === 0 ? (
+          <div style={{ padding: 20, textAlign: "center", color: "var(--muted)", fontSize: "var(--font-sm)" }}>
+            No specific recommendations at this time
+          </div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {recommendations.map((rec, index) => (
+              <div
+                key={index}
+                style={{
+                  padding: 12,
+                  borderRadius: "var(--radius)",
+                  background: "var(--surface3)",
+                  border: "1px solid var(--border)",
+                }}
+              >
+                <div style={{ fontSize: "var(--font-sm)", lineHeight: 1.5 }}>{rec}</div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Quick Reference */}
+      <div className="card card-padded">
+        <div className="section-label" style={{ marginBottom: 12 }}>
+          <i className="ti ti-book" style={{ marginRight: 6 }} /> Quick Reference
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+          <div style={{ padding: 12, borderRadius: "var(--radius)", background: "var(--surface3)" }}>
+            <div style={{ fontSize: "var(--font-xs)", color: "var(--muted)", marginBottom: 4 }}>Active Conditions</div>
+            <div style={{ fontSize: "var(--font-sm)", fontWeight: 600 }}>{(patient.medicalConditions || []).length}</div>
+          </div>
+          <div style={{ padding: 12, borderRadius: "var(--radius)", background: "var(--surface3)" }}>
+            <div style={{ fontSize: "var(--font-xs)", color: "var(--muted)", marginBottom: 4 }}>Active Medications</div>
+            <div style={{ fontSize: "var(--font-sm)", fontWeight: 600 }}>{(patient.medications || []).length}</div>
+          </div>
+          <div style={{ padding: 12, borderRadius: "var(--radius)", background: "var(--surface3)" }}>
+            <div style={{ fontSize: "var(--font-xs)", color: "var(--muted)", marginBottom: 4 }}>Recent Vitals</div>
+            <div style={{ fontSize: "var(--font-sm)", fontWeight: 600 }}>{(patient.vitalSigns || []).length}</div>
+          </div>
+          <div style={{ padding: 12, borderRadius: "var(--radius)", background: "var(--surface3)" }}>
+            <div style={{ fontSize: "var(--font-xs)", color: "var(--muted)", marginBottom: 4 }}>Risk Score</div>
+            <div style={{ fontSize: "var(--font-sm)", fontWeight: 600 }}>{calcRiskScore(patient)}</div>
+          </div>
         </div>
       </div>
     </div>

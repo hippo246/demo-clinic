@@ -161,10 +161,12 @@ export default function PatientForm({ mode, patient, onSave, onClose, role, exis
   }
 
   const SECTIONS = [
-    { id: "personal",  label: "Personal",  icon: "ti-user" },
-    { id: "medical",   label: "Medical",   icon: "ti-heart-rate-monitor" },
-    { id: "insurance", label: "Insurance", icon: "ti-shield" },
-    { id: "status",    label: "Status",    icon: "ti-stethoscope" },
+    { id: "personal",      label: "Personal",      icon: "ti-user" },
+    { id: "medical",       label: "Medical",       icon: "ti-heart-rate-monitor" },
+    { id: "history",       label: "History",       icon: "ti-history" },
+    { id: "medications",   label: "Medications",   icon: "ti-pills" },
+    { id: "insurance",     label: "Insurance",     icon: "ti-shield" },
+    { id: "status",        label: "Status",        icon: "ti-stethoscope" },
   ] as const;
 
   return (
@@ -320,8 +322,9 @@ export default function PatientForm({ mode, patient, onSave, onClose, role, exis
 
           {section === "medical" && (
             <FormSection>
+              <div className="section-label" style={{ marginBottom: 12 }}>Clinical Assessment</div>
               <Field label="Known Allergies">
-                <input type="text" value={form.allergies || ""} onChange={(e) => update("allergies", e.target.value)} placeholder="e.g. Penicillin, Aspirin" style={{ width: "100%" }} />
+                <input type="text" value={form.allergies || ""} onChange={(e) => update("allergies", e.target.value)} placeholder="e.g. Penicillin, Aspirin, Sulfa drugs" style={{ width: "100%" }} />
               </Field>
               <div>
                 <label className="field-label">Medical Alerts</label>
@@ -349,22 +352,124 @@ export default function PatientForm({ mode, patient, onSave, onClose, role, exis
                   })}
                 </div>
               </div>
+              <FormRow>
+                <Field label="Blood Pressure">
+                  <input type="text" value={(form.flags?.bloodPressure as string) || ""} onChange={(e) => update("flags", { ...form.flags, bloodPressure: e.target.value })} placeholder="120/80 mmHg" style={{ width: "100%" }} />
+                </Field>
+                <Field label="Heart Rate">
+                  <input type="text" value={(form.flags?.heartRate as string) || ""} onChange={(e) => update("flags", { ...form.flags, heartRate: e.target.value })} placeholder="72 bpm" style={{ width: "100%" }} />
+                </Field>
+                <Field label="BMI">
+                  <input type="text" value={(form.flags?.bmi as string) || ""} onChange={(e) => update("flags", { ...form.flags, bmi: e.target.value })} placeholder="24.5 kg/m²" style={{ width: "100%" }} />
+                </Field>
+              </FormRow>
+              <Field label="Chief Complaint">
+                <textarea
+                  value={(form.flags?.chiefComplaint as string) || ""}
+                  onChange={(e) => update("flags", { ...form.flags, chiefComplaint: e.target.value })}
+                  placeholder="Primary reason for visit"
+                  rows={2} style={{ width: "100%", resize: "vertical" }}
+                />
+              </Field>
+            </FormSection>
+          )}
+
+          {section === "history" && (
+            <FormSection>
+              <div className="section-label" style={{ marginBottom: 12 }}>Medical History</div>
+              <Field label="Past Medical History">
+                <textarea
+                  value={(form.flags?.pastMedicalHistory as string) || ""}
+                  onChange={(e) => update("flags", { ...form.flags, pastMedicalHistory: e.target.value })}
+                  placeholder="Previous diagnoses, chronic conditions, surgeries"
+                  rows={3} style={{ width: "100%", resize: "vertical" }}
+                />
+              </Field>
+              <Field label="Family History">
+                <textarea
+                  value={(form.flags?.familyHistory as string) || ""}
+                  onChange={(e) => update("flags", { ...form.flags, familyHistory: e.target.value })}
+                  placeholder="Family medical history (diabetes, hypertension, heart disease, cancer)"
+                  rows={2} style={{ width: "100%", resize: "vertical" }}
+                />
+              </Field>
+              <FormRow>
+                <Field label="Smoking Status">
+                  <select value={(form.flags?.smokingStatus as string) || "Never"} onChange={(e) => update("flags", { ...form.flags, smokingStatus: e.target.value })} style={{ width: "100%" }}>
+                    <option value="Never">Never</option>
+                    <option value="Former">Former</option>
+                    <option value="Current">Current</option>
+                  </select>
+                </Field>
+                <Field label="Alcohol Use">
+                  <select value={(form.flags?.alcoholUse as string) || "None"} onChange={(e) => update("flags", { ...form.flags, alcoholUse: e.target.value })} style={{ width: "100%" }}>
+                    <option value="None">None</option>
+                    <option value="Social">Social</option>
+                    <option value="Moderate">Moderate</option>
+                    <option value="Heavy">Heavy</option>
+                  </select>
+                </Field>
+              </FormRow>
+              <Field label="Surgical History">
+                <textarea
+                  value={(form.flags?.surgicalHistory as string) || ""}
+                  onChange={(e) => update("flags", { ...form.flags, surgicalHistory: e.target.value })}
+                  placeholder="Previous surgeries with dates"
+                  rows={2} style={{ width: "100%", resize: "vertical" }}
+                />
+              </Field>
+              <Field label="Current Conditions">
+                <textarea
+                  value={(form.conditions || []).join(", ")}
+                  onChange={(e) => update("conditions", e.target.value ? e.target.value.split(",").map((s) => s.trim()).filter(Boolean) : [])}
+                  placeholder="Type 2 Diabetes, Hypertension, Asthma…"
+                  rows={2} style={{ width: "100%", resize: "vertical" }}
+                />
+              </Field>
+            </FormSection>
+          )}
+
+          {section === "medications" && (
+            <FormSection>
+              <div className="section-label" style={{ marginBottom: 12 }}>Medication Management</div>
               <Field label="Current Medications">
                 <textarea
                   value={(form.medications || []).join(", ")}
                   onChange={(e) => update("medications", e.target.value ? e.target.value.split(",").map((s) => s.trim()).filter(Boolean) : [])}
-                  placeholder="Metformin 500mg, Amlodipine 5mg…"
-                  rows={2} style={{ width: "100%", resize: "vertical" }}
+                  placeholder="Metformin 500mg twice daily, Amlodipine 5mg once daily, Lisinopril 10mg once daily…"
+                  rows={3} style={{ width: "100%", resize: "vertical" }}
                 />
               </Field>
-              <Field label="Conditions">
+              <Field label="Medication Allergies">
+                <input type="text" value={(form.flags?.medicationAllergies as string) || ""} onChange={(e) => update("flags", { ...form.flags, medicationAllergies: e.target.value })} placeholder="Drug allergies with reactions (e.g., Penicillin - Anaphylaxis)" style={{ width: "100%" }} />
+              </Field>
+              <Field label="Previous Adverse Reactions">
                 <textarea
-                  value={(form.conditions || []).join(", ")}
-                  onChange={(e) => update("conditions", e.target.value ? e.target.value.split(",").map((s) => s.trim()).filter(Boolean) : [])}
-                  placeholder="Type 2 Diabetes, Hypertension…"
+                  value={(form.flags?.adverseReactions as string) || ""}
+                  onChange={(e) => update("flags", { ...form.flags, adverseReactions: e.target.value })}
+                  placeholder="Previous adverse drug reactions with details"
                   rows={2} style={{ width: "100%", resize: "vertical" }}
                 />
               </Field>
+              <Field label="Vaccination History">
+                <textarea
+                  value={(form.flags?.vaccinationHistory as string) || ""}
+                  onChange={(e) => update("flags", { ...form.flags, vaccinationHistory: e.target.value })}
+                  placeholder="COVID-19, Influenza, Tetanus, Hepatitis B, etc. with dates"
+                  rows={2} style={{ width: "100%", resize: "vertical" }}
+                />
+              </Field>
+              
+              {/* Drug Interaction Warning */}
+              <div style={{ padding: 12, borderRadius: "var(--radius)", background: "var(--amber-bg)", border: "1px solid var(--amber-border)", marginTop: 16 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                  <i className="ti ti-alert-triangle" style={{ fontSize: 14, color: "var(--amber)" }} />
+                  <div style={{ fontSize: "var(--font-sm)", fontWeight: 600, color: "var(--amber)" }}>Drug Interaction Check</div>
+                </div>
+                <div style={{ fontSize: "var(--font-xs)", color: "var(--muted)" }}>
+                  System will automatically check for drug-drug interactions, drug-allergy interactions, and drug-condition interactions when medications are prescribed.
+                </div>
+              </div>
             </FormSection>
           )}
 
@@ -457,7 +562,15 @@ function FormSection({ children }: { children: React.ReactNode }) {
 }
 
 function FormRow({ children }: { children: React.ReactNode }) {
-  return <div style={{ display: "grid", gridTemplateColumns: `repeat(${React.Children.count(children)}, 1fr)`, gap: 12 }}>{children}</div>;
+  return (
+    <div style={{ 
+      display: "grid", 
+      gridTemplateColumns: `repeat(${React.Children.count(children)}, 1fr)`, 
+      gap: 12 
+    }} className="form-row">
+      {children}
+    </div>
+  );
 }
 
 function Field({ label, error, children }: { label: string; error?: string; children: React.ReactNode }) {

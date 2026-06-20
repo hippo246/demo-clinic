@@ -13,6 +13,18 @@ export type RiskLevel = "Low" | "Medium" | "High" | "Critical";
 export type UserRole = "receptionist" | "doctor" | "admin";
 export type FollowUpStatus = "Pending" | "Called" | "No Answer" | "Completed";
 
+// ─── Advanced Medical Types ─────────────────────────────────────────────────────
+
+export type MedicalConditionSeverity = "Mild" | "Moderate" | "Severe" | "Critical";
+export type MedicationStatus = "Active" | "Discontinued" | "Completed";
+export type LabResultStatus = "Pending" | "Completed" | "Abnormal" | "Critical";
+export type AppointmentType = "Consultation" | "Follow-Up" | "Procedure" | "Emergency" | "Telehealth";
+export type AppointmentStatus = "Scheduled" | "Confirmed" | "In Progress" | "Completed" | "Cancelled" | "No Show";
+export type ClaimStatus = "Draft" | "Submitted" | "Processing" | "Approved" | "Rejected" | "Paid";
+export type PaymentPlanStatus = "Active" | "Paused" | "Completed" | "Defaulted";
+export type VitalSignType = "Blood Pressure" | "Heart Rate" | "Temperature" | "Weight" | "Height" | "BMI" | "Oxygen Saturation" | "Respiratory Rate";
+export type DrugInteractionSeverity = "Minor" | "Moderate" | "Major" | "Contraindicated";
+
 export interface TimelineEvent {
   id: string;
   type: string;
@@ -49,6 +61,204 @@ export interface FamilyMember {
   patientId: string;
 }
 
+// ─── Advanced Medical Interfaces ─────────────────────────────────────────────────
+
+export interface MedicalCondition {
+  id: string;
+  name: string;
+  diagnosisDate: string;
+  severity: MedicalConditionSeverity;
+  status: "Active" | "Resolved" | "Chronic";
+  doctor: string;
+  notes?: string;
+}
+
+export interface Surgery {
+  id: string;
+  name: string;
+  date: string;
+  hospital: string;
+  surgeon: string;
+  notes?: string;
+}
+
+export interface Hospitalization {
+  id: string;
+  reason: string;
+  admissionDate: string;
+  dischargeDate?: string;
+  hospital: string;
+  notes?: string;
+}
+
+export interface Vaccination {
+  id: string;
+  name: string;
+  date: string;
+  dose: string;
+  nextDue?: string;
+  administeredBy: string;
+}
+
+export interface Medication {
+  id: string;
+  name: string;
+  dosage: string;
+  frequency: string;
+  route: string; // Oral, IV, Topical, etc.
+  startDate: string;
+  endDate?: string;
+  status: MedicationStatus;
+  prescribedBy: string;
+  notes?: string;
+  interactions?: string[];
+}
+
+export interface LabResult {
+  id: string;
+  testName: string;
+  testDate: string;
+  result: string;
+  unit: string;
+  referenceRange: string;
+  status: LabResultStatus;
+  orderedBy: string;
+  notes?: string;
+}
+
+export interface ImagingRecord {
+  id: string;
+  type: string; // X-Ray, CT, MRI, Ultrasound, etc.
+  bodyPart: string;
+  date: string;
+  radiologist: string;
+  findings: string;
+  impression: string;
+  status: "Pending" | "Completed" | "Reviewed";
+}
+
+export interface VitalSign {
+  id: string;
+  type: VitalSignType;
+  value: string;
+  unit: string;
+  date: string;
+  recordedBy: string;
+  notes?: string;
+}
+
+export interface Prescription {
+  id: string;
+  medicationId: string;
+  medicationName: string;
+  dosage: string;
+  frequency: string;
+  duration: string;
+  quantity: number;
+  refills: number;
+  prescribedBy: string;
+  prescribedDate: string;
+  status: "Active" | "Dispensed" | "Expired";
+  notes?: string;
+}
+
+export interface DrugInteraction {
+  id: string;
+  drug1: string;
+  drug2: string;
+  severity: DrugInteractionSeverity;
+  description: string;
+  recommendation: string;
+}
+
+export interface Appointment {
+  id: string;
+  patientId: string;
+  patientName: string;
+  doctor: string;
+  type: AppointmentType;
+  status: AppointmentStatus;
+  date: string;
+  time: string;
+  duration: number; // in minutes
+  reason: string;
+  notes?: string;
+  isRecurring: boolean;
+  recurringPattern?: string; // "Weekly", "Monthly", etc.
+  reminderSent: boolean;
+  room?: string;
+}
+
+export interface WaitlistEntry {
+  id: string;
+  patientId: string;
+  patientName: string;
+  requestedDate: string;
+  requestedTime: string;
+  reason: string;
+  priority: "High" | "Medium" | "Low";
+  addedDate: string;
+  notes?: string;
+}
+
+export interface InsuranceClaim {
+  id: string;
+  patientId: string;
+  patientName: string;
+  claimNumber: string;
+  serviceDate: string;
+  serviceType: string;
+  amount: number;
+  insurer: string;
+  policyNumber: string;
+  status: ClaimStatus;
+  submittedDate?: string;
+  approvedDate?: string;
+  paidDate?: string;
+  rejectionReason?: string;
+  notes?: string;
+}
+
+export interface PreAuthorization {
+  id: string;
+  patientId: string;
+  patientName: string;
+  procedure: string;
+  icdCode: string;
+  cptCode: string;
+  requestedDate: string;
+  status: "Pending" | "Approved" | "Denied" | "Additional Info Required";
+  decisionDate?: string;
+  approvedAmount?: number;
+  notes?: string;
+}
+
+export interface PaymentPlan {
+  id: string;
+  patientId: string;
+  patientName: string;
+  totalAmount: number;
+  paidAmount: number;
+  remainingAmount: number;
+  installmentAmount: number;
+  frequency: "Weekly" | "Bi-Weekly" | "Monthly";
+  startDate: string;
+  endDate: string;
+  status: PaymentPlanStatus;
+  nextPaymentDate: string;
+  notes?: string;
+}
+
+export interface RevenueMetrics {
+  totalRevenue: number;
+  monthlyRevenue: number;
+  outstandingBalance: number;
+  averageRevenuePerPatient: number;
+  topServices: { name: string; revenue: number; count: number }[];
+  revenueByDoctor: { doctor: string; revenue: number; patients: number }[];
+  revenueByInsurance: { insurer: string; revenue: number; claims: number }[];
+}
+
 export interface Patient {
   id: string;
   firstName: string;
@@ -81,6 +291,17 @@ export interface Patient {
   alerts: AlertType[];
   alertsReviewed?: boolean;
   acknowledgedAlerts?: string[];
+
+  // Advanced Medical History
+  medicalConditions?: MedicalCondition[];
+  surgeries?: Surgery[];
+  hospitalizations?: Hospitalization[];
+  vaccinations?: Vaccination[];
+  activeMedications?: Medication[];
+  labResults?: LabResult[];
+  imagingRecords?: ImagingRecord[];
+  vitalSigns?: VitalSign[];
+  prescriptions?: Prescription[];
 
   // Status
   status: PatientStatus;

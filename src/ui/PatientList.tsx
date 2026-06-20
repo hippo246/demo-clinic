@@ -77,6 +77,13 @@ export default function PatientList({
   const [filterDoctor,    setFilterDoctor]   = useState("All");
   const [filterInsurance, setFilterIns]      = useState("All");
   const [filterRisk,      setFilterRisk]     = useState("All");
+  const [filterGender,    setFilterGender]   = useState("All");
+  const [filterBloodGroup,setFilterBloodGroup]= useState("All");
+  const [filterAgeMin,    setFilterAgeMin]   = useState("");
+  const [filterAgeMax,    setFilterAgeMax]   = useState("");
+  const [filterDateFrom,  setFilterDateFrom] = useState("");
+  const [filterDateTo,    setFilterDateTo]   = useState("");
+  const [showAdvanced,    setShowAdvanced]   = useState(false);
   const [sortKey,         setSortKey]        = useState<keyof Patient>("lastVisit");
   const [sortDir,         setSortDir]        = useState<"asc"|"desc">("desc");
   const [page,            setPage]           = useState(1);
@@ -88,8 +95,14 @@ export default function PatientList({
     if (filterDoctor    !== "All") list = list.filter((p) => p.doctor          === filterDoctor);
     if (filterInsurance !== "All") list = list.filter((p) => p.insuranceStatus === filterInsurance);
     if (filterRisk      !== "All") list = list.filter((p) => calcRiskScore(p).level === filterRisk);
+    if (filterGender    !== "All") list = list.filter((p) => p.gender          === filterGender);
+    if (filterBloodGroup!== "All") list = list.filter((p) => p.bloodGroup      === filterBloodGroup);
+    if (filterAgeMin    !== "")     list = list.filter((p) => p.age            >= parseInt(filterAgeMin));
+    if (filterAgeMax    !== "")     list = list.filter((p) => p.age            <= parseInt(filterAgeMax));
+    if (filterDateFrom  !== "")     list = list.filter((p) => p.lastVisit       && new Date(p.lastVisit) >= new Date(filterDateFrom));
+    if (filterDateTo    !== "")     list = list.filter((p) => p.lastVisit       && new Date(p.lastVisit) <= new Date(filterDateTo));
     return sortPatients(list, sortKey, sortDir);
-  }, [patients, search, filterStatus, filterDoctor, filterInsurance, filterRisk, sortKey, sortDir]);
+  }, [patients, search, filterStatus, filterDoctor, filterInsurance, filterRisk, filterGender, filterBloodGroup, filterAgeMin, filterAgeMax, filterDateFrom, filterDateTo, sortKey, sortDir]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const paginated  = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
@@ -198,6 +211,30 @@ export default function PatientList({
           {["Low","Medium","High","Critical"].map((r) => <option key={r}>{r}</option>)}
         </select>
 
+        <button className="btn btn-ghost" onClick={() => setShowAdvanced(!showAdvanced)} style={{ fontSize: "var(--font-sm)", padding: "6px 12px" }}>
+          <i className={`ti ${showAdvanced ? "ti-chevron-up" : "ti-chevron-down"}`} style={{ fontSize: 12 }} />
+          Advanced
+        </button>
+
+        {(filterStatus !== "All" || filterDoctor !== "All" || filterInsurance !== "All" || filterRisk !== "All" ||
+          filterGender !== "All" || filterBloodGroup !== "All" || filterAgeMin || filterAgeMax || filterDateFrom || filterDateTo) && (
+          <button className="btn btn-ghost" style={{ fontSize: "var(--font-sm)", padding: "6px 12px", color: "var(--red)" }} onClick={() => {
+            setFilterStatus("All");
+            setFilterDoctor("All");
+            setFilterIns("All");
+            setFilterRisk("All");
+            setFilterGender("All");
+            setFilterBloodGroup("All");
+            setFilterAgeMin("");
+            setFilterAgeMax("");
+            setFilterDateFrom("");
+            setFilterDateTo("");
+            resetPage();
+          }}>
+            <i className="ti ti-filter-off" style={{ fontSize: 12 }} /> Clear All
+          </button>
+        )}
+
         {(filterStatus !== "All" || filterDoctor !== "All" || filterInsurance !== "All" || filterRisk !== "All" || search) && (
           <button className="btn-icon" onClick={() => {
             setSearch(""); setFilterStatus("All"); setFilterDoctor("All"); setFilterIns("All"); setFilterRisk("All"); resetPage();
@@ -226,6 +263,53 @@ export default function PatientList({
           </button>
         </div>
       </div>
+
+      {/* Advanced Filters Panel */}
+      {showAdvanced && (
+        <div className="card card-padded" style={{ margin: "10px 16px", animation: "slideDown 0.2s ease" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 12 }}>
+            {/* Gender Filter */}
+            <div className="field-group">
+              <label className="field-label">Gender</label>
+              <select value={filterGender} onChange={(e) => { setFilterGender(e.target.value); resetPage(); }} style={{ width: "100%" }}>
+                <option value="All">All</option>
+                <option value="Male">Male</option>
+                <option value="Female">Female</option>
+                <option value="Other">Other</option>
+              </select>
+            </div>
+
+            {/* Blood Group Filter */}
+            <div className="field-group">
+              <label className="field-label">Blood Group</label>
+              <select value={filterBloodGroup} onChange={(e) => { setFilterBloodGroup(e.target.value); resetPage(); }} style={{ width: "100%" }}>
+                <option value="All">All</option>
+                {["A+","A-","B+","B-","AB+","AB-","O+","O-"].map((bg) => <option key={bg}>{bg}</option>)}
+              </select>
+            </div>
+
+            {/* Age Range Filter */}
+            <div className="field-group">
+              <label className="field-label">Age Range</label>
+              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                <input type="number" value={filterAgeMin} onChange={(e) => { setFilterAgeMin(e.target.value); resetPage(); }} placeholder="Min" style={{ width: "60px", fontSize: "var(--font-sm)" }} min="0" max="120" />
+                <span style={{ color: "var(--muted)" }}>-</span>
+                <input type="number" value={filterAgeMax} onChange={(e) => { setFilterAgeMax(e.target.value); resetPage(); }} placeholder="Max" style={{ width: "60px", fontSize: "var(--font-sm)" }} min="0" max="120" />
+              </div>
+            </div>
+
+            {/* Last Visit Date Range */}
+            <div className="field-group">
+              <label className="field-label">Last Visit Range</label>
+              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                <input type="date" value={filterDateFrom} onChange={(e) => { setFilterDateFrom(e.target.value); resetPage(); }} style={{ width: "100%", fontSize: "var(--font-sm)" }} />
+                <span style={{ color: "var(--muted)" }}>-</span>
+                <input type="date" value={filterDateTo} onChange={(e) => { setFilterDateTo(e.target.value); resetPage(); }} style={{ width: "100%", fontSize: "var(--font-sm)" }} />
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Active search label */}
       {search && (

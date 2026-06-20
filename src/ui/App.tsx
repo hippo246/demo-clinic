@@ -546,7 +546,7 @@ function AppInner() {
       )}
 
       {/* Page content */}
-      <div style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column" }}>
+      <div style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column", paddingBottom: "60px" }}>
         {activeTab === "patients" && (
           selectedPatient ? (
             <PatientProfile
@@ -592,6 +592,36 @@ function AppInner() {
             <SettingsPage dark={dark} setDark={setDark} role={userRole} setRole={setUserRole} />
           </div>
         )}
+      </div>
+
+      {/* Mobile Bottom Navigation */}
+      <div className="mobile-only" style={{
+        position: "fixed", bottom: 0, left: 0, right: 0,
+        background: dark ? "#0c0f1a" : "#fff",
+        borderTop: "1px solid var(--border)",
+        display: "flex", justifyContent: "space-around",
+        padding: "8px 0", paddingBottom: "calc(8px + env(safe-area-inset-bottom))",
+        zIndex: 1000,
+        boxShadow: "0 -4px 20px rgba(0,0,0,0.1)",
+      }}>
+        {NAV_TABS.map(({ id, label, icon }) => (
+          <button
+            key={id}
+            onClick={() => setActiveTab(id)}
+            style={{
+              display: "flex", flexDirection: "column", alignItems: "center", gap: 4,
+              padding: "8px 12px", borderRadius: "var(--radius)",
+              fontSize: "var(--font-xs)", fontWeight: activeTab === id ? 600 : 400,
+              cursor: "pointer", border: "none", transition: "all 0.2s",
+              color: activeTab === id ? "var(--accent)" : "var(--muted)",
+              background: activeTab === id ? "var(--accent-soft)" : "transparent",
+              minWidth: 60,
+            }}
+          >
+            <i className={`ti ${icon}`} style={{ fontSize: 20 }} />
+            <span style={{ fontSize: 10 }}>{label}</span>
+          </button>
+        ))}
       </div>
 
       {/* Modals */}

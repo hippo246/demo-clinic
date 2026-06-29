@@ -1,4 +1,4 @@
-import type { Patient, AuditEntry, RiskResult, NextBestAction, VisitReadiness, PatientStats, DrugInteraction } from "./types";
+import type { Patient, AuditEntry, RiskResult, NextBestAction, VisitReadiness, PatientStats, DrugInteraction, VitalSign, MedicalCondition, Medication } from "./types";
 import { AVATAR_COLORS, ALERT_SEVERITY } from "./constants";
 
 // ─── Date / Format ─────────────────────────────────────────────────────────────
@@ -316,7 +316,10 @@ const AUDIT_KEY   = "clinic_crm_audit_v1";
 export function savePatients(patients: Patient[]): void {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(patients));
-  } catch { /* storage full — silently ignore */ }
+  } catch (error) {
+    console.error("Failed to save patients to localStorage:", error);
+    throw new Error("Storage full or unavailable");
+  }
 }
 
 export function loadPatients(): Patient[] | null {
@@ -332,7 +335,10 @@ export function loadPatients(): Patient[] | null {
 export function saveAuditMap(map: Record<string, AuditEntry[]>): void {
   try {
     localStorage.setItem(AUDIT_KEY, JSON.stringify(map));
-  } catch { /* ignore */ }
+  } catch (error) {
+    console.error("Failed to save audit map to localStorage:", error);
+    throw new Error("Storage full or unavailable");
+  }
 }
 
 export function loadAuditMap(): Record<string, AuditEntry[]> {
@@ -543,11 +549,18 @@ export function getTreatmentProtocol(condition: string) {
   return TREATMENT_PROTOCOLS.find((p) => p.condition.toLowerCase() === condition.toLowerCase());
 }
 
-export function getClinicalAlerts(vitalSigns: any[]) {
-  const alerts: any[] = [];
+interface ClinicalAlert {
+  type: string;
+  message: string;
+  severity: "critical" | "high" | "medium" | "low";
+  date: string;
+}
+
+export function getClinicalAlerts(vitalSigns: VitalSign[]): ClinicalAlert[] {
+  const alerts: ClinicalAlert[] = [];
   if (!vitalSigns) return alerts;
 
-  vitalSigns.forEach((v: any) => {
+  vitalSigns.forEach((v: VitalSign) => {
     if (v.type === "Blood Pressure" && v.value) {
       const systolic = parseInt(v.value.split("/")[0]);
       if (systolic > 160) {
@@ -577,12 +590,12 @@ export function getClinicalAlerts(vitalSigns: any[]) {
   return alerts.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 }
 
-export function getClinicalRecommendations(patient: any) {
+export function getClinicalRecommendations(patient: Partial<Patient>): string[] {
   const recommendations: string[] = [];
-  
+
   // Check for active conditions
   if (patient.medicalConditions) {
-    patient.medicalConditions.forEach((condition: any) => {
+    patient.medicalConditions.forEach((condition: MedicalCondition) => {
       const protocol = getTreatmentProtocol(condition.name);
       if (protocol) {
         recommendations.push(`For ${condition.name}: ${protocol.protocol}`);
@@ -591,8 +604,8 @@ export function getClinicalRecommendations(patient: any) {
   }
 
   // Check for medication interactions
-  if (patient.medications && patient.medications.length > 1) {
-    const interactions = checkDrugInteractions(patient.medications.map((m: any) => m.name));
+  if (patient.activeMedications && patient.activeMedications.length > 1) {
+    const interactions = checkDrugInteractions(patient.activeMedications.map((m: Medication) => m.name));
     if (interactions.length > 0) {
       interactions.forEach((i) => {
         if (i.severity === "Contraindicated" || i.severity === "Major") {
@@ -604,3 +617,270 @@ export function getClinicalRecommendations(patient: any) {
 
   return recommendations;
 }
+
+// ─── Export Functions ───────────────────────────────────────────────────────────
+export function exportPatientsToCSV(patients: Patient[]): string {
+  const headers = [
+    "ID", "First Name", "Last Name", "Full Name", "DOB", "Age", "Gender",
+    "Blood Group", "Phone", "Email", "Address", "Nationality",
+    "Emergency Name", "Emergency Relation", "Emergency Phone",
+    "Insurer", "Policy Number", "Insurance Expiry", "Insurance Status",
+    "Allergies", "Conditions", "Medications", "Alerts",
+    "Status", "Doctor", "Last Visit", "Next Appointment",
+    "Follow-Up Date", "Follow-Up Reason", "Follow-Up Priority", "Follow-Up Status",
+    "Phone Verified", "Insurance Verified", "ID Verified", "Consent Signed", "Documents Complete",
+    "Created At", "Updated At"
+  ];
+
+  const rows = patients.map((p) => [
+    p.id,
+    p.firstName,
+    p.lastName,
+    p.name,
+    p.dob,
+    p.age,
+    p.gender,
+    p.bloodGroup,
+    p.phone,
+    p.email,
+    p.address,
+    p.nationality,
+    p.emergencyName,
+    p.emergencyRelation,
+    p.emergencyPhone,
+    p.insurer,
+    p.policyNumber,
+    p.insuranceExpiry,
+    p.insuranceStatus,
+    p.allergies,
+    p.conditions.join("; "),
+    p.medications.join("; "),
+    p.alerts.join("; "),
+    p.status,
+    p.doctor,
+    p.lastVisit,
+    p.nextAppointment,
+    p.followUpDate,
+    p.followUpReason,
+    p.followUpPriority,
+    p.followUpStatus,
+    p.phoneVerified,
+    p.insuranceVerified,
+    p.idVerified,
+    p.consentSigned,
+    p.documentsComplete,
+    p.createdAt,
+    p.updatedAt,
+  ]);
+
+  const csvContent = [
+    headers.join(","),
+    ...rows.map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(",")),
+  ].join("\n");
+
+  return csvContent;
+}
+
+export function exportPatientsToJSON(patients: Patient[]): string {
+  return JSON.stringify(patients, null, 2);
+}
+
+export function downloadFile(content: string, filename: string, mimeType: string): void {
+  const blob = new Blob([content], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+
+export function exportPatients(patients: Patient[], format: "csv" | "json"): void {
+  const timestamp = new Date().toISOString().split("T")[0];
+  const filename = `patients_export_${timestamp}`;
+
+  if (format === "csv") {
+    const csvContent = exportPatientsToCSV(patients);
+    downloadFile(csvContent, `${filename}.csv`, "text/csv");
+  } else {
+    const jsonContent = exportPatientsToJSON(patients);
+    downloadFile(jsonContent, `${filename}.json`, "application/json");
+  }
+}
+
+// ─── Validation Functions ────────────────────────────────────────────────────────
+export interface ValidationResult {
+  isValid: boolean;
+  errors: Record<string, string>;
+  warnings: string[];
+}
+
+export function validatePatientData(data: Partial<Patient>): ValidationResult {
+  const errors: Record<string, string> = {};
+  const warnings: string[] = [];
+
+  // Required fields
+  if (!data.firstName?.trim()) {
+    errors.firstName = "First name is required";
+  } else if (data.firstName.length < 2) {
+    errors.firstName = "First name must be at least 2 characters";
+  }
+
+  if (!data.lastName?.trim()) {
+    errors.lastName = "Last name is required";
+  } else if (data.lastName.length < 2) {
+    errors.lastName = "Last name must be at least 2 characters";
+  }
+
+  if (!data.phone?.trim()) {
+    errors.phone = "Phone number is required";
+  } else if (!/^\+?[0-9\s\-\(\)]{10,}$/.test(data.phone)) {
+    errors.phone = "Invalid phone number format";
+  }
+
+  if (!data.dob) {
+    errors.dob = "Date of birth is required";
+  } else {
+    const age = calcAge(data.dob);
+    if (age < 0 || age > 120) {
+      errors.dob = "Invalid date of birth";
+    }
+    if (age < 18) {
+      warnings.push("Patient is a minor (under 18)");
+    }
+    if (age > 100) {
+      warnings.push("Patient age is over 100 years");
+    }
+  }
+
+  // Email validation
+  if (data.email && data.email.trim()) {
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email)) {
+      errors.email = "Invalid email format";
+    }
+  }
+
+  // Insurance validation
+  if (data.insurer && data.insurer !== "None") {
+    if (!data.policyNumber?.trim()) {
+      errors.policyNumber = "Policy number is required when insurance is selected";
+    }
+    if (!data.insuranceExpiry) {
+      errors.insuranceExpiry = "Insurance expiry date is required";
+    } else {
+      const expiryDate = new Date(data.insuranceExpiry);
+      const now = new Date();
+      if (expiryDate < now) {
+        warnings.push("Insurance has expired");
+      } else if (expiryDate < new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000)) {
+        warnings.push("Insurance expires within 30 days");
+      }
+    }
+  }
+
+  // Emergency contact validation
+  if (!data.emergencyName?.trim()) {
+    warnings.push("No emergency contact name provided");
+  }
+  if (!data.emergencyPhone?.trim()) {
+    warnings.push("No emergency contact phone provided");
+  } else if (!/^\+?[0-9\s\-\(\)]{10,}$/.test(data.emergencyPhone)) {
+    errors.emergencyPhone = "Invalid emergency phone number format";
+  }
+
+  // Medical alerts validation
+  if (data.alerts && data.alerts.length > 0) {
+    if (data.alerts.includes("Allergy") && !data.allergies?.trim()) {
+      warnings.push("Allergy alert set but no allergy details provided");
+    }
+  }
+
+  return {
+    isValid: Object.keys(errors).length === 0,
+    errors,
+    warnings,
+  };
+}
+
+export function sanitizeInput(input: string): string {
+  return input.trim().replace(/[<>]/g, "");
+}
+
+export function validatePhone(phone: string): boolean {
+  return /^\+?[0-9\s\-\(\)]{10,}$/.test(phone);
+}
+
+export function validateEmail(email: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
+export function validateDate(date: string): boolean {
+  const d = new Date(date);
+  return d instanceof Date && !isNaN(d.getTime());
+}
+
+// ─── Undo/Redo System ───────────────────────────────────────────────────────────
+export interface HistoryAction {
+  type: "create" | "update" | "delete";
+  patientId: string;
+  patientData: Patient;
+  timestamp: number;
+  description: string;
+}
+
+export class UndoRedoManager {
+  private history: HistoryAction[] = [];
+  private currentIndex: number = -1;
+  private maxHistory: number = 50;
+
+  addAction(action: HistoryAction): void {
+    // Remove any future history if we're not at the end
+    if (this.currentIndex < this.history.length - 1) {
+      this.history = this.history.slice(0, this.currentIndex + 1);
+    }
+    
+    this.history.push(action);
+    this.currentIndex++;
+    
+    // Limit history size
+    if (this.history.length > this.maxHistory) {
+      this.history.shift();
+      this.currentIndex--;
+    }
+  }
+
+  undo(): HistoryAction | null {
+    if (this.currentIndex < 0) return null;
+    const action = this.history[this.currentIndex];
+    this.currentIndex--;
+    return action;
+  }
+
+  redo(): HistoryAction | null {
+    if (this.currentIndex >= this.history.length - 1) return null;
+    this.currentIndex++;
+    return this.history[this.currentIndex];
+  }
+
+  canUndo(): boolean {
+    return this.currentIndex >= 0;
+  }
+
+  canRedo(): boolean {
+    return this.currentIndex < this.history.length - 1;
+  }
+
+  clear(): void {
+    this.history = [];
+    this.currentIndex = -1;
+  }
+
+  getHistory(): HistoryAction[] {
+    return this.history;
+  }
+}
+
+// Global undo/redo manager instance
+export const undoRedoManager = new UndoRedoManager();

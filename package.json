@@ -7,7 +7,11 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "lint:fix": "eslint . --fix",
+    "preview": "vite preview",
+    "type-check": "tsc --noEmit",
+    "format": "echo 'Add prettier to project for formatting'",
+    "clean": "rm -rf dist .vite node_modules/.vite"
   },
   "dependencies": {
     "react": "^19.2.6",

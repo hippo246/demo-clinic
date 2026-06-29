@@ -6,6 +6,7 @@ import PatientProfile from "./PatientProfile";
 import PatientForm from "./PatientForm";
 import { AppointmentsPage, BillingPage, ReportsPage, SettingsPage, PrintSummaryModal } from "./StubPages";
 import { ToastProvider, useToast } from "./Toast";
+import ErrorBoundary from "./ErrorBoundary";
 import { getInitialPatients } from "./mockData";
 import {
   getPatientStats,
@@ -16,19 +17,24 @@ import {
   saveAuditMap,
   loadAuditMap,
   fmtDate,
+  undoRedoManager,
 } from "./utils";
+import TopBar, { type NavTab } from "./components/TopBar";
+import Sidebar from "./Sidebar";
+import StatsBar from "./StatsBar";
+import ImportModal from "./components/ImportModal";
 
-// ─── Nav Tabs ─────────────────────────────────────────────────────────────────
-const NAV_TABS = [
-  { id: "patients",      label: "Patients",      icon: "ti-users" },
-  { id: "appointments",  label: "Appointments",  icon: "ti-calendar" },
-  { id: "billing",       label: "Billing",       icon: "ti-receipt" },
-  { id: "reports",       label: "Reports",       icon: "ti-chart-bar" },
-  { id: "settings",      label: "Settings",      icon: "ti-settings" },
-] as const;
-type NavTab = typeof NAV_TABS[number]["id"];
+// Global error handler for unhandled promise rejections
+if (typeof window !== "undefined") {
+  window.addEventListener("unhandledrejection", (event) => {
+    console.error("Unhandled promise rejection:", event.reason);
+    event.preventDefault();
+  });
 
-const CURRENT_USER = { name: "Dr. Admin", role: "admin" as UserRole };
+  window.addEventListener("error", (event) => {
+    console.error("Global error:", event.error);
+  });
+}
 
 // ─── Load initial data ────────────────────────────────────────────────────────
 function getPatients(): Patient[] {
@@ -37,321 +43,17 @@ function getPatients(): Patient[] {
   return getInitialPatients();
 }
 
-// ─── Top Bar ──────────────────────────────────────────────────────────────────
-function TopBar({
-  dark, setDark, activeTab, setActiveTab, userRole, setUserRole, stats,
-}: {
-  dark: boolean;
-  setDark: (d: boolean) => void;
-  activeTab: NavTab;
-  setActiveTab: (t: NavTab) => void;
-  userRole: UserRole;
-  setUserRole: (r: UserRole) => void;
-  stats: ReturnType<typeof getPatientStats>;
-}) {
-  const [menuOpen, setMenuOpen] = useState(false);
-
-  return (
-    <div style={{
-      background: dark ? "#0c0f1a" : "#fff",
-      borderBottom: "1px solid var(--border)",
-      display: "flex", alignItems: "center",
-      padding: "0 16px", height: 54, flexShrink: 0,
-      gap: 12, position: "relative", zIndex: 100,
-    }}>
-      {/* Logo */}
-      <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
-        <div style={{
-          width: 28, height: 28, borderRadius: 8,
-          background: "linear-gradient(135deg, #2563eb 0%, #7c3aed 100%)",
-          display: "flex", alignItems: "center", justifyContent: "center",
-        }}>
-          <i className="ti ti-heart-rate-monitor" style={{ color: "#fff", fontSize: 15 }} />
-        </div>
-        <span style={{ fontWeight: 800, fontSize: 15, letterSpacing: "-0.02em" }}>
-          ClinicOS
-        </span>
-      </div>
-
-      {/* Desktop nav */}
-      <nav style={{
-        display: "flex", gap: 2, flex: 1,
-        overflow: "hidden",
-      }} className="desktop-only">
-        {NAV_TABS.map(({ id, label, icon }) => (
-          <button
-            key={id}
-            onClick={() => setActiveTab(id)}
-            style={{
-              display: "inline-flex", alignItems: "center", gap: 6,
-              padding: "6px 12px", borderRadius: "var(--radius)",
-              fontSize: "var(--font-sm)", fontWeight: activeTab === id ? 600 : 400,
-              cursor: "pointer", border: "none", transition: "all 0.15s",
-              color:      activeTab === id ? "var(--accent)" : "var(--muted)",
-              background: activeTab === id ? "var(--accent-soft)" : "transparent",
-            }}
-          >
-            <i className={`ti ${icon}`} style={{ fontSize: 14 }} />
-            {label}
-          </button>
-        ))}
-      </nav>
-
-      {/* Right side */}
-      <div style={{ display: "flex", alignItems: "center", gap: 8, marginLeft: "auto" }}>
-        {/* Urgent badge */}
-        {(stats.followUpDue + stats.insExpiring) > 0 && (
-          <div className="desktop-only" style={{
-            display: "flex", alignItems: "center", gap: 6,
-            padding: "4px 10px", borderRadius: "var(--radius-full)",
-            background: "var(--amber-bg)", border: "1px solid var(--amber-border)",
-            fontSize: "var(--font-xs)", fontWeight: 700, color: "var(--amber)",
-          }}>
-            <span style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--amber)", display: "inline-block" }} />
-            {stats.followUpDue + stats.insExpiring} urgent
-          </div>
-        )}
-
-        {/* Role selector */}
-        <select
-          value={userRole}
-          onChange={(e) => setUserRole(e.target.value as UserRole)}
-          className="desktop-only"
-          style={{ fontSize: "var(--font-xs)", padding: "5px 8px", borderRadius: "var(--radius)" }}
-        >
-          <option value="receptionist">Receptionist</option>
-          <option value="doctor">Doctor</option>
-          <option value="admin">Admin</option>
-        </select>
-
-        {/* Dark toggle */}
-        <button
-          className="btn-icon"
-          onClick={() => setDark(!dark)}
-          title={dark ? "Switch to light mode" : "Switch to dark mode"}
-        >
-          <i className={`ti ${dark ? "ti-sun" : "ti-moon"}`} style={{ fontSize: 15 }} />
-        </button>
-
-        {/* Avatar */}
-        <div style={{
-          width: 32, height: 32, borderRadius: "50%",
-          background: "var(--accent-soft)", color: "var(--accent)",
-          display: "flex", alignItems: "center", justifyContent: "center",
-          fontSize: 12, fontWeight: 800, cursor: "pointer",
-          border: "2px solid var(--accent)30",
-        }} title={CURRENT_USER.name}>
-          {CURRENT_USER.name.split(" ").map((n) => n[0]).join("").slice(0, 2)}
-        </div>
-
-        {/* Mobile hamburger */}
-        <button className="btn-icon mobile-only" onClick={() => setMenuOpen((o) => !o)}>
-          <i className="ti ti-menu-2" style={{ fontSize: 16 }} />
-        </button>
-      </div>
-
-      {/* Mobile dropdown */}
-      {menuOpen && (
-        <div className="mobile-only" style={{
-          position: "absolute", top: "100%", left: 0, right: 0,
-          background: dark ? "#0c0f1a" : "#fff",
-          borderBottom: "1px solid var(--border)",
-          padding: "8px 12px", zIndex: 200,
-          boxShadow: "var(--shadow-lg)",
-        }}>
-          {NAV_TABS.map(({ id, label, icon }) => (
-            <button key={id} onClick={() => { setActiveTab(id); setMenuOpen(false); }} style={{
-              display: "flex", alignItems: "center", gap: 10, width: "100%",
-              padding: "10px 12px", borderRadius: "var(--radius)", marginBottom: 2,
-              fontSize: "var(--font-base)", fontWeight: activeTab === id ? 600 : 400,
-              color: activeTab === id ? "var(--accent)" : "var(--text)",
-              background: activeTab === id ? "var(--accent-soft)" : "transparent",
-              border: "none", cursor: "pointer",
-            }}>
-              <i className={`ti ${icon}`} style={{ fontSize: 16 }} />
-              {label}
-            </button>
-          ))}
-          <div style={{ padding: "8px 12px 4px", borderTop: "1px solid var(--border)", marginTop: 4 }}>
-            <label style={{ fontSize: "var(--font-xs)", color: "var(--muted)", display: "block", marginBottom: 4 }}>Role</label>
-            <select value={userRole} onChange={(e) => setUserRole(e.target.value as UserRole)}
-              style={{ width: "100%", fontSize: "var(--font-sm)" }}>
-              <option value="receptionist">Receptionist</option>
-              <option value="doctor">Doctor</option>
-              <option value="admin">Admin</option>
-            </select>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ─── Stats Bar ────────────────────────────────────────────────────────────────
-function StatsBar({
-  stats,
-  onFilter,
-}: {
-  stats: ReturnType<typeof getPatientStats>;
-  onFilter: (q: string) => void;
-}) {
-  const items = [
-    { label: "Total",           value: stats.total,          color: "var(--accent)", icon: "ti-users",              query: "" },
-    { label: "Active",          value: stats.active,         color: "var(--green)",  icon: "ti-activity",           query: "active" },
-    { label: "Follow-Up Due",   value: stats.followUpDue,    color: "var(--amber)",  icon: "ti-clock",              query: "follow-up overdue" },
-    { label: "New",             value: stats.newPatients,    color: "#7c3aed",       icon: "ti-user-plus",          query: "new patient" },
-    { label: "Ins. Expiring",   value: stats.insExpiring,    color: "var(--red)",    icon: "ti-shield-exclamation", query: "insurance expiring" },
-    { label: "Critical Alerts", value: stats.criticalAlerts, color: "var(--red)",    icon: "ti-alert-triangle",     query: "critical" },
-  ];
-
-  return (
-    <div style={{
-      background: "var(--surface)", borderBottom: "1px solid var(--border)",
-      display: "grid",
-      gridTemplateColumns: `repeat(${items.length}, 1fr)`,
-      flexShrink: 0,
-    }}>
-      {items.map((s, i) => (
-        <button
-          key={s.label}
-          onClick={() => s.query && onFilter(s.query)}
-          style={{
-            padding: "10px 14px",
-            borderRight: i < items.length - 1 ? "1px solid var(--border)" : "none",
-            background: "none", border: "none",
-            cursor: s.query ? "pointer" : "default",
-            textAlign: "left", transition: "background 0.15s",
-          }}
-          onMouseEnter={(e) => { if (s.query) (e.currentTarget as HTMLElement).style.background = "var(--surface2)"; }}
-          onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "none"; }}
-          title={s.query ? `Filter: ${s.label}` : undefined}
-        >
-          <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 2 }}>
-            <i className={`ti ${s.icon}`} style={{ fontSize: 11, color: s.color }} />
-            <span style={{ fontSize: "var(--font-2xs)", color: "var(--muted)", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em" }}>
-              {s.label}
-            </span>
-          </div>
-          <div style={{ fontSize: 22, fontWeight: 800, color: s.color, lineHeight: 1 }}>
-            {s.value}
-          </div>
-        </button>
-      ))}
-    </div>
-  );
-}
-
-// ─── Import Wizard (simple inline) ────────────────────────────────────────────
-function ImportModal({ onImport, onClose }: {
-  onImport: (rows: Partial<Patient>[]) => void;
-  onClose: () => void;
-}) {
-  const [csv, setCsv] = useState("");
-  const [preview, setPreview] = useState<Partial<Patient>[]>([]);
-  const [parsed, setParsed] = useState(false);
-
-  function parseCsv() {
-    const lines = csv.trim().split("\n").filter((l) => l.trim());
-    if (lines.length < 2) return;
-    const headers = lines[0].split(",").map((h) => h.trim().toLowerCase());
-    const rows = lines.slice(1).map((line) => {
-      const vals = line.split(",").map((v) => v.trim());
-      const obj: Record<string, string> = {};
-      headers.forEach((h, i) => { obj[h] = vals[i] || ""; });
-      return {
-        firstName:     obj.firstname || obj["first name"] || obj.name?.split(" ")[0] || "",
-        lastName:      obj.lastname  || obj["last name"]  || obj.name?.split(" ").slice(1).join(" ") || "",
-        name:          obj.name || `${obj.firstname || ""} ${obj.lastname || ""}`.trim(),
-        phone:         obj.phone || "",
-        email:         obj.email || "",
-        dob:           obj.dob || obj["date of birth"] || "",
-        gender:        obj.gender || "Other",
-        bloodGroup:    obj.bloodgroup || obj["blood group"] || "O+",
-        doctor:        obj.doctor || "Dr. Sharma",
-        insurer:       obj.insurer || obj.insurance || "None",
-        address:       obj.address || "",
-      } as Partial<Patient>;
-    });
-    setPreview(rows);
-    setParsed(true);
-  }
-
-  return (
-    <div className="modal-backdrop">
-      <div className="modal" style={{ width: "100%", maxWidth: 620 }}>
-        <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <div>
-            <div style={{ fontWeight: 700, fontSize: "var(--font-md)" }}>Import Patients</div>
-            <div style={{ fontSize: "var(--font-xs)", color: "var(--muted)" }}>Paste CSV data below</div>
-          </div>
-          <button className="btn-icon" onClick={onClose}><i className="ti ti-x" style={{ fontSize: 16 }} /></button>
-        </div>
-        <div style={{ padding: 20 }}>
-          {!parsed ? (
-            <>
-              <div style={{
-                padding: "12px", borderRadius: "var(--radius)", background: "var(--surface2)",
-                border: "1px solid var(--border)", marginBottom: 12,
-                fontSize: "var(--font-xs)", color: "var(--muted)", lineHeight: 1.7,
-              }}>
-                <strong>Expected columns:</strong> name, phone, email, dob, gender, bloodGroup, doctor, insurer, address
-                <br />
-                <strong>Example:</strong> name,phone,dob,gender<br />Arjun Sharma,+91 9876543210,1985-04-12,Male
-              </div>
-              <textarea
-                value={csv}
-                onChange={(e) => setCsv(e.target.value)}
-                placeholder="Paste CSV data here…"
-                rows={8}
-                style={{ width: "100%", resize: "vertical", fontFamily: "monospace", fontSize: "var(--font-xs)" }}
-              />
-              <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-                <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
-                <button className="btn btn-primary" onClick={parseCsv} disabled={!csv.trim()}>
-                  <i className="ti ti-eye" style={{ fontSize: 13 }} /> Preview
-                </button>
-              </div>
-            </>
-          ) : (
-            <>
-              <div style={{ marginBottom: 12, fontSize: "var(--font-sm)", color: "var(--muted)" }}>
-                Found <strong>{preview.length}</strong> records to import.
-              </div>
-              <div style={{ maxHeight: 240, overflowY: "auto", border: "1px solid var(--border)", borderRadius: "var(--radius)" }}>
-                <table className="tbl">
-                  <thead>
-                    <tr><th>Name</th><th>Phone</th><th>DOB</th><th>Doctor</th></tr>
-                  </thead>
-                  <tbody>
-                    {preview.map((r, i) => (
-                      <tr key={i}>
-                        <td style={{ fontSize: "var(--font-sm)" }}>{r.name}</td>
-                        <td style={{ fontSize: "var(--font-sm)", color: "var(--muted)" }}>{r.phone}</td>
-                        <td style={{ fontSize: "var(--font-sm)", color: "var(--muted)" }}>{r.dob}</td>
-                        <td style={{ fontSize: "var(--font-sm)", color: "var(--muted)" }}>{r.doctor}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-                <button className="btn btn-ghost" onClick={() => setParsed(false)}>Back</button>
-                <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
-                <button className="btn btn-primary" onClick={() => onImport(preview)}>
-                  <i className="ti ti-file-import" style={{ fontSize: 13 }} />
-                  Import {preview.length} Patients
-                </button>
-              </div>
-            </>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
+// ─── Mobile bottom nav tabs ───────────────────────────────────────────────────
+const NAV_TABS: { id: NavTab; label: string; icon: string }[] = [
+  { id: "patients",     label: "Patients",     icon: "ti-users" },
+  { id: "appointments", label: "Appointments", icon: "ti-calendar" },
+  { id: "billing",      label: "Billing",      icon: "ti-receipt" },
+  { id: "reports",      label: "Reports",      icon: "ti-chart-bar" },
+  { id: "settings",     label: "Settings",     icon: "ti-settings" },
+];
 
 // ─── Root App ─────────────────────────────────────────────────────────────────
-export default function App() {
+function AppContent() {
   return (
     <ToastProvider>
       <AppInner />
@@ -363,19 +65,64 @@ function AppInner() {
   const { toast } = useToast();
   const [dark,            setDark]            = useState(() => window.matchMedia("(prefers-color-scheme: dark)").matches);
   const [activeTab,       setActiveTab]       = useState<NavTab>("patients");
-  const [patients,        setPatients]        = useState<Patient[]>(getPatients);
+  const [patients,        setPatients]        = useState<Patient[]>([]);
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
   const [formMode,        setFormMode]        = useState<"create" | "edit" | null>(null);
-  const [auditMap,        setAuditMap]        = useState<Record<string, AuditEntry[]>>(loadAuditMap);
+  const [auditMap,        setAuditMap]        = useState<Record<string, AuditEntry[]>>({});
   const [importOpen,      setImportOpen]      = useState(false);
   const [userRole,        setUserRole]        = useState<UserRole>("receptionist");
   const [listSearch,      setListSearch]      = useState("");  // lifted search for stat bar clicks
   const [printPatient,    setPrintPatient]    = useState<Patient | null>(null);
+  const [isLoaded,        setIsLoaded]        = useState(false);
+  const [canUndo,         setCanUndo]         = useState(false);
+  const [canRedo,         setCanRedo]         = useState(false);
   const searchRef = useRef<HTMLInputElement | null>(null);
 
+  // Display name for the active role, used in audit log messages
+  const ROLE_NAMES: Record<string, string> = {
+    receptionist: "Front Desk",
+    doctor: "Dr. Sharma",
+    nurse: "Nurse Station",
+    admin: "Admin",
+  };
+  const CURRENT_USER = { name: ROLE_NAMES[userRole] || "Staff" };
+
+  // Load initial data
+  useEffect(() => {
+    try {
+      const loadedPatients = getPatients();
+      const loadedAuditMap = loadAuditMap();
+      setPatients(loadedPatients);
+      setAuditMap(loadedAuditMap);
+      setIsLoaded(true);
+    } catch (error) {
+      console.error("Error loading initial data:", error);
+      // Fallback to initial data if loading fails
+      setPatients(getInitialPatients());
+      setAuditMap({});
+      setIsLoaded(true);
+      toast("Failed to load saved data, using default data", "error");
+    }
+  }, [toast]);
+
   // Persist whenever patients or audit changes
-  useEffect(() => { savePatients(patients); }, [patients]);
-  useEffect(() => { saveAuditMap(auditMap); }, [auditMap]);
+  useEffect(() => {
+    try {
+      savePatients(patients);
+    } catch (error) {
+      console.error("Failed to save patients:", error);
+      toast("Failed to save patient data", "error");
+    }
+  }, [patients, toast]);
+
+  useEffect(() => {
+    try {
+      saveAuditMap(auditMap);
+    } catch (error) {
+      console.error("Failed to save audit map:", error);
+      toast("Failed to save audit log", "error");
+    }
+  }, [auditMap, toast]);
 
   // Keep selectedPatient in sync with patients array
   useEffect(() => {
@@ -385,9 +132,16 @@ function AppInner() {
     }
   }, [patients]);
 
-  // Ctrl+K / Cmd+K → focus search
+  // Update undo/redo button states
+  useEffect(() => {
+    setCanUndo(undoRedoManager.canUndo());
+    setCanRedo(undoRedoManager.canRedo());
+  }, [patients]);
+
+  // Keyboard shortcuts
   useEffect(() => {
     function handler(e: KeyboardEvent) {
+      // Ctrl+K / Cmd+K → focus search
       if ((e.ctrlKey || e.metaKey) && e.key === "k") {
         e.preventDefault();
         setActiveTab("patients");
@@ -397,10 +151,72 @@ function AppInner() {
           input?.focus();
         }, 80);
       }
+      // Ctrl+N / Cmd+N → new patient
+      if ((e.ctrlKey || e.metaKey) && e.key === "n" && !e.shiftKey) {
+        e.preventDefault();
+        setActiveTab("patients");
+        setSelectedPatient(null);
+        setFormMode("create");
+      }
+      // Ctrl+E / Cmd+E → export patients
+      if ((e.ctrlKey || e.metaKey) && e.key === "e") {
+        e.preventDefault();
+        const { exportPatients } = require("./utils");
+        exportPatients(patients, "csv");
+        toast("Patients exported to CSV", "success");
+      }
+      // Escape → close modals/go back
+      if (e.key === "Escape") {
+        if (formMode) {
+          setFormMode(null);
+        } else if (selectedPatient) {
+          setSelectedPatient(null);
+        } else if (importOpen) {
+          setImportOpen(false);
+        } else if (printPatient) {
+          setPrintPatient(null);
+        }
+      }
+      // Ctrl+1-5 → switch tabs
+      if ((e.ctrlKey || e.metaKey) && e.key >= "1" && e.key <= "5") {
+        e.preventDefault();
+        const tabs: NavTab[] = ["patients", "appointments", "billing", "reports", "settings"];
+        setActiveTab(tabs[parseInt(e.key) - 1]);
+      }
+      // Ctrl+D / Cmd+D → toggle dark mode
+      if ((e.ctrlKey || e.metaKey) && e.key === "d") {
+        e.preventDefault();
+        setDark(!dark);
+      }
+      // Ctrl+F / Cmd+F → focus search (alternative)
+      if ((e.ctrlKey || e.metaKey) && e.key === "f") {
+        e.preventDefault();
+        setActiveTab("patients");
+        setSelectedPatient(null);
+        setTimeout(() => {
+          const input = document.querySelector<HTMLInputElement>('input[type="search"]');
+          input?.focus();
+        }, 80);
+      }
+      // Ctrl+Z / Cmd+Z → undo
+      if ((e.ctrlKey || e.metaKey) && e.key === "z" && !e.shiftKey) {
+        e.preventDefault();
+        handleUndo();
+      }
+      // Ctrl+Shift+Z / Cmd+Shift+Z → redo
+      if ((e.ctrlKey || e.metaKey) && e.key === "z" && e.shiftKey) {
+        e.preventDefault();
+        handleRedo();
+      }
+      // Ctrl+Y / Cmd+Y → redo (alternative)
+      if ((e.ctrlKey || e.metaKey) && e.key === "y") {
+        e.preventDefault();
+        handleRedo();
+      }
     }
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, []);
+  }, [activeTab, selectedPatient, formMode, importOpen, printPatient, patients, dark, toast]);
 
   const stats = getPatientStats(patients);
 
@@ -412,9 +228,69 @@ function AppInner() {
 
   const handleBack = useCallback(() => setSelectedPatient(null), []);
 
+  const handleUndo = useCallback(() => {
+    const action = undoRedoManager.undo();
+    if (action) {
+      let updatedPatients: Patient[];
+      
+      if (action.type === "create") {
+        // Undo create: remove the patient
+        updatedPatients = patients.filter((p) => p.id !== action.patientId);
+      } else if (action.type === "update") {
+        // Undo update: restore previous state
+        updatedPatients = patients.map((p) =>
+          p.id === action.patientId ? action.patientData : p
+        );
+      } else if (action.type === "delete") {
+        // Undo delete: restore the patient
+        updatedPatients = [...patients, action.patientData];
+      }
+      
+      setPatients(updatedPatients);
+      toast(`Undid: ${action.description}`, "info");
+    }
+  }, [patients, toast]);
+
+  const handleRedo = useCallback(() => {
+    const action = undoRedoManager.redo();
+    if (action) {
+      let updatedPatients: Patient[];
+      
+      if (action.type === "create") {
+        // Redo create: add the patient back
+        updatedPatients = [...patients, action.patientData];
+      } else if (action.type === "update") {
+        // Redo update: apply the update again
+        updatedPatients = patients.map((p) =>
+          p.id === action.patientId ? action.patientData : p
+        );
+      } else if (action.type === "delete") {
+        // Redo delete: remove the patient again
+        updatedPatients = patients.filter((p) => p.id !== action.patientId);
+      }
+      
+      setPatients(updatedPatients);
+      toast(`Redid: ${action.description}`, "info");
+    }
+  }, [patients, toast]);
+
   const handleUpdatePatient = useCallback((updated: Patient, action = "edited") => {
+    const previousPatient = patients.find((p) => p.id === updated.id);
+    
     setPatients((prev) => prev.map((p) => p.id === updated.id ? updated : p));
     setSelectedPatient(updated);
+    
+    // Record undo action
+    if (previousPatient) {
+      undoRedoManager.addAction({
+        type: "update",
+        patientId: updated.id,
+        patientData: previousPatient,
+        timestamp: Date.now(),
+        description: `Update to ${updated.name}`,
+      });
+    }
+    
     const entry = createAuditEntry({
       patientId: updated.id,
       message:   `${CURRENT_USER.name} ${action}: ${updated.name}`,
@@ -427,6 +303,16 @@ function AppInner() {
 
   const handleDeletePatient = useCallback((id: string) => {
     const p = patients.find((x) => x.id === id);
+    if (p) {
+      // Record undo action before deletion
+      undoRedoManager.addAction({
+        type: "delete",
+        patientId: id,
+        patientData: p,
+        timestamp: Date.now(),
+        description: `Delete ${p.name}`,
+      });
+    }
     setPatients((prev) => prev.filter((x) => x.id !== id));
     setSelectedPatient(null);
     if (p) {
@@ -461,11 +347,31 @@ function AppInner() {
       };
       setPatients((prev) => [newPatient, ...prev]);
       setSelectedPatient(newPatient);
+      
+      // Record undo action for create
+      undoRedoManager.addAction({
+        type: "create",
+        patientId: newId,
+        patientData: newPatient,
+        timestamp: Date.now(),
+        description: `Create ${newPatient.name}`,
+      });
+      
       const entry = createAuditEntry({ patientId: newId, message: `${CURRENT_USER.name} registered ${newPatient.name}`, type: "created", user: CURRENT_USER.name });
       setAuditMap((prev) => addAuditEntry(prev, newId, entry));
       toast(`${newPatient.name} registered`, "success");
     } else if (formMode === "edit" && selectedPatient) {
       const updated = { ...selectedPatient, ...data, updatedAt: new Date().toISOString() };
+      
+      // Record undo action for edit
+      undoRedoManager.addAction({
+        type: "update",
+        patientId: updated.id,
+        patientData: selectedPatient,
+        timestamp: Date.now(),
+        description: `Edit ${updated.name}`,
+      });
+      
       setPatients((prev) => prev.map((p) => p.id === updated.id ? updated : p));
       setSelectedPatient(updated);
       const entry = createAuditEntry({ patientId: updated.id, message: `${CURRENT_USER.name} edited ${updated.name}`, type: "edited", user: CURRENT_USER.name });
@@ -508,8 +414,39 @@ function AppInner() {
   }, [patients.length, toast]);
 
   // ── Render ───────────────────────────────────────────────────────────────────
+  // Show loading screen while data is loading
+  if (!isLoaded) {
+    return (
+      <div style={{
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        height: "100vh",
+        background: "var(--surface)",
+        color: "var(--text)",
+      }}>
+        <div style={{
+          width: 48,
+          height: 48,
+          borderRadius: "50%",
+          border: "3px solid var(--border)",
+          borderTopColor: "var(--accent)",
+          animation: "spin 1s linear infinite",
+          marginBottom: 16,
+        }} />
+        <div style={{ fontSize: "var(--font-sm)", color: "var(--muted)" }}>Loading ClinicOS...</div>
+        <style>{`
+          @keyframes spin {
+            to { transform: rotate(360deg); }
+          }
+        `}</style>
+      </div>
+    );
+  }
+
   return (
-    <div className="crm-root col" style={{ height: "100vh", overflow: "hidden" }}>
+    <div className="crm-root col" style={{ height: "100vh", minHeight: "-webkit-fill-available", overflow: "hidden" }}>
       <GlobalStyles dark={dark} />
 
       <TopBar
@@ -519,34 +456,49 @@ function AppInner() {
         stats={stats}
       />
 
-      {/* Stats bar — only on patients tab, only when not in profile view */}
-      {activeTab === "patients" && !selectedPatient && (
-        <StatsBar
-          stats={stats}
-          onFilter={(q) => { setListSearch(q); }}
-        />
-      )}
+      {/* Body: sidebar (desktop) + main column */}
+      <div style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "row" }}>
 
-      {/* Ctrl+K hint */}
-      {activeTab === "patients" && !selectedPatient && (
-        <div style={{
-          position: "fixed", bottom: 24, left: "50%", transform: "translateX(-50%)",
-          zIndex: 50, pointerEvents: "none",
-          background: "var(--surface)", border: "1px solid var(--border)",
-          borderRadius: "var(--radius-full)", padding: "5px 14px",
-          fontSize: "var(--font-xs)", color: "var(--muted)", boxShadow: "var(--shadow)",
-          display: "flex", alignItems: "center", gap: 6,
-          opacity: 0.7,
-        }}>
-          <kbd style={{ background: "var(--surface2)", padding: "1px 5px", borderRadius: 4, fontSize: "var(--font-2xs)", fontFamily: "monospace" }}>
-            Ctrl+K
-          </kbd>
-          to focus search
-        </div>
-      )}
+        <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} dark={dark} />
 
-      {/* Page content */}
-      <div style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column", paddingBottom: "60px" }}>
+        {/* Main column */}
+        <div style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column", minWidth: 0 }}>
+
+          {/* Stats bar — only on patients tab, only when not in profile view */}
+          {activeTab === "patients" && !selectedPatient && (
+            <StatsBar
+              stats={stats}
+              onFilter={(q) => { setListSearch(q); }}
+              patients={patients}
+              dark={dark}
+            />
+          )}
+
+          {/* Ctrl+K hint */}
+          <style>{`
+            @media (max-width: 768px) {
+              .content-area { padding-bottom: calc(60px + env(safe-area-inset-bottom, 0px)) !important; }
+            }
+          `}</style>
+          {activeTab === "patients" && !selectedPatient && (
+            <div style={{
+              position: "fixed", bottom: 24, left: "50%", transform: "translateX(-50%)",
+              zIndex: 50, pointerEvents: "none",
+              background: "var(--surface)", border: "1px solid var(--border)",
+              borderRadius: "var(--radius-full)", padding: "5px 14px",
+              fontSize: "var(--font-xs)", color: "var(--muted)", boxShadow: "var(--shadow)",
+              display: "flex", alignItems: "center", gap: 6,
+              opacity: 0.7,
+            }}>
+              <kbd style={{ background: "var(--surface2)", padding: "1px 5px", borderRadius: 4, fontSize: "var(--font-2xs)", fontFamily: "monospace" }}>
+                Ctrl+K
+              </kbd>
+              to focus search
+            </div>
+          )}
+
+          {/* Page content */}
+          <div style={{ flex: 1, overflow: "auto", display: "flex", flexDirection: "column", paddingBottom: "env(safe-area-inset-bottom, 0px)" }} className="content-area">
         {activeTab === "patients" && (
           selectedPatient ? (
             <PatientProfile
@@ -573,33 +525,35 @@ function AppInner() {
           )
         )}
         {activeTab === "appointments" && (
-          <div style={{ flex: 1, overflow: "auto" }}>
+          <div style={{ flex: 1, overflow: "auto", height: "100%" }}>
             <AppointmentsPage patients={patients} onSelectPatient={(p) => { handleSelect(p); setActiveTab("patients"); }} />
           </div>
         )}
         {activeTab === "billing" && (
-          <div style={{ flex: 1, overflow: "auto" }}>
+          <div style={{ flex: 1, overflow: "auto", height: "100%" }}>
             <BillingPage patients={patients} onSelectPatient={(p) => { handleSelect(p); setActiveTab("patients"); }} />
           </div>
         )}
         {activeTab === "reports" && (
-          <div style={{ flex: 1, overflow: "auto" }}>
+          <div style={{ flex: 1, overflow: "auto", height: "100%" }}>
             <ReportsPage patients={patients} onSelectPatient={(p) => { handleSelect(p); setActiveTab("patients"); }} />
           </div>
         )}
         {activeTab === "settings" && (
-          <div style={{ flex: 1, overflow: "auto" }}>
+          <div style={{ flex: 1, overflow: "auto", height: "100%" }}>
             <SettingsPage dark={dark} setDark={setDark} role={userRole} setRole={setUserRole} />
           </div>
         )}
-      </div>
+          </div>
+        </div>{/* /main column */}
+      </div>{/* /body row */}
 
       {/* Mobile Bottom Navigation */}
       <div className="mobile-only" style={{
         position: "fixed", bottom: 0, left: 0, right: 0,
         background: dark ? "#0c0f1a" : "#fff",
         borderTop: "1px solid var(--border)",
-        display: "flex", justifyContent: "space-around",
+        justifyContent: "space-around",
         padding: "8px 0", paddingBottom: "calc(8px + env(safe-area-inset-bottom))",
         zIndex: 1000,
         boxShadow: "0 -4px 20px rgba(0,0,0,0.1)",
@@ -642,5 +596,13 @@ function AppInner() {
         <PrintSummaryModal patient={printPatient} onClose={() => setPrintPatient(null)} />
       )}
     </div>
+  );
+}
+
+export default function App() {
+  return (
+    <ErrorBoundary>
+      <AppContent />
+    </ErrorBoundary>
   );
 }

@@ -37,7 +37,7 @@ export default function PatientForm({ mode, patient, onSave, onClose, role, exis
 
   // Duplicate detection
   const duplicates = useMemo(() => {
-    if (mode === "edit" || !form.phone || !form.name) return [];
+    if (mode === "edit" || !form.phone || (!form.firstName && !form.lastName)) return [];
     const tempPatient = { ...form, id: "temp", name: `${form.firstName || ""} ${form.lastName || ""}`.trim() } as Patient;
     return detectDuplicates([...existingPatients, tempPatient]).filter(
       d => d.patients.some(p => p.id !== patient?.id)
@@ -228,7 +228,7 @@ export default function PatientForm({ mode, patient, onSave, onClose, role, exis
               padding: "10px 14px", borderBottom: `2px solid ${section === id ? "var(--accent)" : "transparent"}`,
               color: section === id ? "var(--accent)" : "var(--muted)",
               fontWeight: section === id ? 600 : 400, fontSize: "var(--font-sm)",
-              background: "none", border: "none", borderBottom: `2px solid ${section === id ? "var(--accent)" : "transparent"}`,
+              background: "none", border: "none",
               cursor: "pointer", transition: "all 0.15s",
             }}>
               <i className={`ti ${icon}`} style={{ fontSize: 13 }} />

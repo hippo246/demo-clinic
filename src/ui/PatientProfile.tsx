@@ -1,16 +1,21 @@
 import React, { useState, useCallback } from "react";
 import type { Patient, AuditEntry, UserRole, TimelineEvent, PatientNote, PatientDocument } from "./types";
 import {
-  fmtDate, getAvatarColor, getInitials, calcRiskScore,
+  fmtDate, getAvatarColor, getInitials, calcRiskScore, calcAge,
   calcVisitReadiness, calcNextBestAction, buildSmartSnapshot,
   createAuditEntry, getClinicalAlerts, getClinicalRecommendations,
 } from "./utils";
-import { QUICK_ACTIONS, ALERT_SEVERITY, CONSENT_TYPES } from "./constants";
+
 import {
   StatusBadge, AlertChip, InsuranceBadge, BloodGroupBadge,
   RiskBadge, AvatarCircle, VerifiedDot, ConsentBadge,
 } from "./Badges";
-import { can } from "./constants";
+import { can, QUICK_ACTIONS, ALERT_SEVERITY, CONSENT_TYPES } from "./constants";
+
+const DOCUMENT_TYPES = [
+  "Lab Report", "Prescription", "Imaging", "Discharge Summary",
+  "Consent Form", "Insurance Card", "ID Proof", "Referral Letter", "Other",
+] as const;
 
 // ─── Tabs ─────────────────────────────────────────────────────────────────────
 const PROFILE_TABS = [
@@ -41,11 +46,12 @@ interface PatientProfileProps {
 
 export default function PatientProfile({
   patient,
-  auditEntries,
+  auditEntries = [],
   onBack,
   onEditPatient,
   onUpdatePatient,
   onDeletePatient,
+  onPrint,
   role,
 }: PatientProfileProps) {
   const [tab,          setTab]          = useState<TabId>("overview");
@@ -150,9 +156,6 @@ export default function PatientProfile({
         break;
       case "Create Invoice":
         // Navigate to billing page with this patient
-        onSelectPatient?.(patient);
-        // In a real app, this would navigate to the billing page
-        alert("Navigate to Billing page for " + patient.name);
         break;
       case "Call Patient":
         handleUpdateFollowUp({
@@ -219,7 +222,7 @@ export default function PatientProfile({
 
         {/* Identity row */}
         <div style={{ padding: "14px 16px 10px", display: "flex", alignItems: "flex-start", gap: 12, flexWrap: "wrap" }}>
-          <button className="btn btn-ghost" onClick={onBack} style={{ padding: "6px 10px", fontSize: "var(--font-sm)", flexShrink: 0 }}>
+          <button className="btn btn-ghost" onClick={onBack} style={{ padding: "12px", fontSize: "var(--font-sm)", flexShrink: 0, minHeight: 44 }}>
             <i className="ti ti-arrow-left" style={{ fontSize: 14 }} />
             <span className="desktop-only">Back</span>
           </button>
@@ -266,18 +269,18 @@ export default function PatientProfile({
 
           {/* Right actions */}
           <div style={{ display: "flex", gap: 6, flexShrink: 0, flexWrap: "wrap", justifyContent: "flex-end" }}>
-            <button className="btn btn-ghost" onClick={() => setShowEmergency(true)} style={{ fontSize: "var(--font-sm)" }}>
+            <button className="btn btn-ghost" onClick={() => setShowEmergency(true)} style={{ fontSize: "var(--font-sm)", padding: "12px", minHeight: 44 }}>
               <i className="ti ti-emergency-bed" style={{ fontSize: 14, color: "var(--red)" }} />
               <span className="desktop-only">Emergency</span>
             </button>
             {can(role, "editPatient") && (
-              <button className="btn btn-primary" onClick={onEditPatient} style={{ fontSize: "var(--font-sm)" }}>
+              <button className="btn btn-primary" onClick={onEditPatient} style={{ fontSize: "var(--font-sm)", padding: "12px", minHeight: 44 }}>
                 <i className="ti ti-edit" style={{ fontSize: 14 }} />
                 <span className="desktop-only">Edit</span>
               </button>
             )}
             {can(role, "deletePatient") && (
-              <button className="btn btn-danger" onClick={() => setShowDelete(true)} style={{ fontSize: "var(--font-sm)" }}>
+              <button className="btn btn-danger" onClick={() => setShowDelete(true)} style={{ fontSize: "var(--font-sm)", padding: "12px", minHeight: 44 }}>
                 <i className="ti ti-trash" style={{ fontSize: 14 }} />
               </button>
             )}
@@ -285,14 +288,14 @@ export default function PatientProfile({
         </div>
 
         {/* Tab bar */}
-        <div style={{ padding: "0 16px", display: "flex", gap: 2, overflowX: "auto" }}>
+        <div style={{ padding: "0 16px", display: "flex", gap: 2, overflowX: "auto", scrollbarWidth: "none" }}>
           {PROFILE_TABS.map(({ id, label, icon }) => (
             <button
               key={id}
               onClick={() => setTab(id)}
               style={{
                 display: "inline-flex", alignItems: "center", gap: 6,
-                padding: "9px 12px", borderRadius: "var(--radius) var(--radius) 0 0",
+                padding: "12px 14px", borderRadius: "var(--radius) var(--radius) 0 0",
                 border: "1px solid transparent", borderBottom: "none",
                 fontSize: "var(--font-sm)", fontWeight: tab === id ? 600 : 400,
                 cursor: "pointer", whiteSpace: "nowrap", transition: "all 0.15s",
@@ -300,9 +303,10 @@ export default function PatientProfile({
                 background: tab === id ? "var(--bg)" : "transparent",
                 marginBottom: tab === id ? -1 : 0,
                 borderColor: tab === id ? "var(--border)" : "transparent",
+                minHeight: 44,
               }}
             >
-              <i className={`ti ${icon}`} style={{ fontSize: 13 }} />
+              <i className={`ti ${icon}`} style={{ fontSize: 14 }} />
               <span className="desktop-only">{label}</span>
               <span className="mobile-only">{label.split(" ")[0]}</span>
               {tabCounts[id] !== undefined && tabCounts[id]! > 0 && (
@@ -341,7 +345,7 @@ export default function PatientProfile({
         <ConfirmDeleteModal
           patient={patient}
           onConfirm={() => {
-            onDeletePatient?.();
+            onDeletePatient(patient.id);
             setShowDelete(false);
           }}
           onClose={() => setShowDelete(false)}
@@ -381,9 +385,10 @@ function OverviewTab({
   onQuickAction: (a: string) => void;
 }) {
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "1fr 340px", gap: 16, alignItems: "start" }} className="desktop-only">
-      {/* Main col */}
-      <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+    <>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 340px", gap: 16, alignItems: "start" }} className="desktop-only">
+        {/* Main col */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
 
         {/* Snapshot */}
         <div className="card card-padded" style={{
@@ -578,6 +583,7 @@ function OverviewTab({
         </div>
       </InfoCard>
     </div>
+    </>
   );
 }
 
@@ -595,7 +601,7 @@ function TimelineTab({
 
   function submit() {
     if (!form.type || !form.description || !form.date) return;
-    onAddEvent({ ...form, date });
+    onAddEvent({ ...form, date: form.date });
     setForm({ type: "", description: "", date: "" });
     setShowForm(false);
   }
@@ -693,7 +699,7 @@ function DocumentsTab({
 
   function submit() {
     if (!form.type || !form.name || !form.date) return;
-    onAddDoc({ ...form, date, verified: false });
+    onAddDoc({ ...form, date: form.date, verified: false });
     setForm({ type: "", name: "", date: "" });
     setShowForm(false);
   }
@@ -870,790 +876,6 @@ function NotesTab({
             ))
         )}
       </div>
-    </div>
-  );
-}
-
-// ─── Overview Tab ─────────────────────────────────────────────────────────────
-function OverviewTab({
-  patient, role, onVerificationToggle, snapshot, readiness, onQuickAction
-}: {
-  patient: Patient;
-  role: UserRole;
-  onVerificationToggle: (key: string) => void;
-  snapshot: string;
-  readiness: ReturnType<typeof calcVisitReadiness>;
-  onQuickAction: (a: string) => void;
-}) {
-  return (
-    <div style={{ display: "grid", gridTemplateColumns: "1fr 340px", gap: 16, alignItems: "start" }} className="desktop-only">
-      {/* Main col */}
-      <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-
-        {/* Snapshot */}
-        <div className="card card-padded" style={{
-          background: "linear-gradient(135deg, var(--accent-soft) 0%, var(--surface) 100%)",
-          border: "1px solid var(--accent)30",
-        }}>
-          <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
-            <i className="ti ti-sparkles" style={{ fontSize: 16, color: "var(--accent)", flexShrink: 0, marginTop: 1 }} />
-            <div>
-              <div style={{ fontSize: "var(--font-xs)", fontWeight: 700, color: "var(--accent)", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 4 }}>
-                AI Snapshot
-              </div>
-              <p style={{ fontSize: "var(--font-sm)", color: "var(--text)", lineHeight: 1.6 }}>
-                {snapshot}
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {/* Demographics */}
-        <InfoCard title="Demographics" icon="ti-user" iconBg="var(--blue-bg)" iconColor="var(--blue)">
-          <InfoGrid cols={2} rows={[
-            ["Full Name",       patient.name],
-            ["Date of Birth",   fmtDate(patient.dob)],
-            ["Age",             `${patient.age} years`],
-            ["Gender",          patient.gender],
-            ["Blood Group",     patient.bloodGroup],
-            ["Nationality",     patient.nationality],
-            ["Phone",           patient.phone],
-            ["Email",           patient.email],
-            ["Address",         patient.address],
-          ]} />
-        </InfoCard>
-
-        {/* Emergency Contact */}
-        <InfoCard title="Emergency Contact" icon="ti-phone-call" iconBg="#fce7f3" iconColor="#9d174d">
-          {patient.emergencyName ? (
-            <InfoGrid cols={2} rows={[
-              ["Name",        patient.emergencyName],
-              ["Relation",    patient.emergencyRelation || "—"],
-              ["Phone",       patient.emergencyPhone],
-            ]} />
-          ) : (
-            <div className="empty-state" style={{ padding: "20px 0" }}>
-              <i className="ti ti-phone-off empty-state-icon" style={{ fontSize: 24 }} />
-              <div className="empty-state-sub">No emergency contact on file</div>
-            </div>
-          )}
-        </InfoCard>
-
-        {/* Medical (role-gated) */}
-        {can(role, "viewMedical") && (
-          <InfoCard title="Medical Information" icon="ti-heart-rate-monitor" iconBg="var(--red-bg)" iconColor="var(--red)">
-            <InfoGrid cols={2} rows={[
-              ["Allergies",    patient.allergies || "None known"],
-              ["Blood Group",  patient.bloodGroup],
-              ["Conditions",   (patient.conditions || []).join(", ") || "None"],
-              ["Medications",  (patient.medications || []).join(", ") || "None"],
-            ]} />
-          </InfoCard>
-        )}
-
-        {/* Insurance */}
-        {can(role, "viewBilling") && (
-          <InfoCard title="Insurance" icon="ti-shield" iconBg="var(--green-bg)" iconColor="var(--green)">
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
-              <InsuranceBadge status={patient.insuranceStatus} />
-            </div>
-            {patient.insurer !== "None" ? (
-              <InfoGrid cols={2} rows={[
-                ["Provider",       patient.insurer],
-                ["Policy Number",  patient.policyNumber || "—"],
-                ["Expiry",         fmtDate(patient.insuranceExpiry)],
-              ]} />
-            ) : (
-              <p style={{ fontSize: "var(--font-sm)", color: "var(--muted)" }}>No insurance on file</p>
-            )}
-          </InfoCard>
-        )}
-
-        {/* Quick Actions */}
-        <InfoCard title="Quick Actions" icon="ti-bolt" iconBg="var(--purple-bg)" iconColor="var(--purple)">
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8 }}>
-            {QUICK_ACTIONS.map((a) => (
-              <button key={a.label} onClick={() => onQuickAction(a.label)} style={{
-                display: "flex", flexDirection: "column", alignItems: "center", gap: 6,
-                padding: "12px 8px", borderRadius: "var(--radius)", border: "1px solid var(--border)",
-                background: "var(--surface2)", cursor: "pointer", transition: "all 0.15s",
-              }}
-              onMouseOver={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "var(--surface3)"; }}
-              onMouseOut={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "var(--surface2)"; }}
-              >
-                <div style={{
-                  width: 32, height: 32, borderRadius: "var(--radius)",
-                  background: a.color + "15", display: "flex", alignItems: "center", justifyContent: "center",
-                }}>
-                  <i className={`ti ${a.icon}`} style={{ fontSize: 16, color: a.color }} />
-                </div>
-                <span style={{ fontSize: "var(--font-2xs)", fontWeight: 500, color: "var(--muted)", textAlign: "center", lineHeight: 1.3 }}>
-                  {a.label}
-                </span>
-              </button>
-            ))}
-          </div>
-        </InfoCard>
-      </div>
-
-      {/* Side col */}
-      <div style={{ display: "flex", flexDirection: "column", gap: 12, position: "sticky", top: 0 }}>
-
-        {/* Visit Readiness */}
-        <div className="card card-padded">
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-            <span style={{ fontSize: "var(--font-sm)", fontWeight: 700 }}>Visit Readiness</span>
-            <span style={{
-              fontSize: "var(--font-xs)", fontWeight: 700,
-              color: readiness.ready ? "var(--green)" : "var(--amber)",
-              background: readiness.ready ? "var(--green-bg)" : "var(--amber-bg)",
-              padding: "2px 6px", borderRadius: "var(--radius-sm)",
-            }}>
-              {readiness.done}/{readiness.total}
-            </span>
-          </div>
-          <div className="progress-bar" style={{ marginBottom: 10 }}>
-            <div className="progress-fill" style={{
-              width: `${(readiness.done / readiness.total) * 100}%`,
-              background: readiness.ready ? "var(--green)" : "var(--amber)",
-            }} />
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            {readiness.items.map((item) => (
-              <button key={item.key} onClick={() => onVerificationToggle(item.key)} style={{
-                display: "flex", alignItems: "center", gap: 8, padding: "6px 8px",
-                borderRadius: "var(--radius-sm)", border: `1px solid ${item.done ? "var(--green-border)" : "var(--red-border)"}`,
-                background: item.done ? "var(--green-bg)" : "transparent",
-                cursor: "pointer", textAlign: "left", transition: "all 0.15s",
-              }}>
-                <VerifiedDot done={item.done} />
-                <span style={{ fontSize: "var(--font-xs)", color: item.done ? "var(--green)" : "var(--text)" }}>
-                  {item.label}
-                </span>
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Appointments */}
-        <div className="card card-padded">
-          <div className="section-label">Appointments</div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <span style={{ fontSize: "var(--font-xs)", color: "var(--muted)" }}>Last Visit</span>
-              <span style={{ fontSize: "var(--font-sm)", fontWeight: 600 }}>{fmtDate(patient.lastVisit)}</span>
-            </div>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <span style={{ fontSize: "var(--font-xs)", color: "var(--muted)" }}>Next Appointment</span>
-              <span style={{ fontSize: "var(--font-sm)", fontWeight: 600 }}>
-                {patient.nextAppointment ? fmtDate(patient.nextAppointment) : (
-                  <span style={{ color: "var(--amber)", fontSize: "var(--font-xs)" }}>Not scheduled</span>
-                )}
-              </span>
-            </div>
-            {patient.followUpDate && (
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <span style={{ fontSize: "var(--font-xs)", color: "var(--muted)" }}>Follow-Up Due</span>
-                <span style={{ fontSize: "var(--font-sm)", fontWeight: 600, color: "var(--amber)" }}>
-                  {fmtDate(patient.followUpDate)}
-                </span>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Family */}
-        {(patient.family || []).length > 0 && (
-          <div className="card card-padded">
-            <div className="section-label">Family Members</div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              {(patient.family || []).map((f) => (
-                <div key={f.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 8px", borderRadius: "var(--radius-sm)", background: "var(--surface2)" }}>
-                  <AvatarCircle name={f.name} size="sm" />
-                  <div>
-                    <div style={{ fontSize: "var(--font-sm)", fontWeight: 600 }}>{f.name}</div>
-                    <div style={{ fontSize: "var(--font-xs)", color: "var(--muted)" }}>{f.relation}</div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Pinned notes */}
-        {(patient.notes || []).filter((n) => n.pinned).length > 0 && (
-          <div className="card card-padded">
-            <div className="section-label">
-              <i className="ti ti-pin" style={{ fontSize: 10, marginRight: 4 }} />
-              Pinned Notes
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              {(patient.notes || []).filter((n) => n.pinned).map((n) => (
-                <div key={n.id} style={{
-                  padding: "8px 10px", borderRadius: "var(--radius-sm)",
-                  background: "#fffbeb", border: "1px solid var(--amber-border)",
-                  fontSize: "var(--font-xs)", color: "#92400e",
-                }}>
-                  {n.text}
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-
-    {/* Mobile version - single column */}
-    <div className="mobile-only" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-      {/* Snapshot */}
-      <div className="card card-padded" style={{
-        background: "linear-gradient(135deg, var(--accent-soft) 0%, var(--surface) 100%)",
-        border: "1px solid var(--accent)30",
-      }}>
-        <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
-          <i className="ti ti-sparkles" style={{ fontSize: 16, color: "var(--accent)", flexShrink: 0, marginTop: 1 }} />
-          <div>
-            <div style={{ fontSize: "var(--font-xs)", fontWeight: 700, color: "var(--accent)", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 4 }}>
-              AI Snapshot
-            </div>
-            <p style={{ fontSize: "var(--font-sm)", color: "var(--text)", lineHeight: 1.6 }}>
-              {snapshot}
-            </p>
-          </div>
-        </div>
-      </div>
-
-      {/* Demographics */}
-      <InfoCard title="Demographics" icon="ti-user" iconBg="var(--blue-bg)" iconColor="var(--blue)">
-        <InfoGrid cols={1} rows={[
-          ["Full Name",       patient.name],
-          ["Date of Birth",   fmtDate(patient.dob)],
-          ["Age",             `${patient.age} years`],
-          ["Gender",          patient.gender],
-          ["Blood Group",     patient.bloodGroup],
-          ["Nationality",     patient.nationality],
-          ["Phone",           patient.phone],
-          ["Email",           patient.email],
-          ["Address",         patient.address],
-        ]} />
-      </InfoCard>
-
-      {/* Emergency Contact */}
-      <InfoCard title="Emergency Contact" icon="ti-phone-call" iconBg="#fce7f3" iconColor="#9d174d">
-        {patient.emergencyName ? (
-          <InfoGrid cols={1} rows={[
-            ["Name",        patient.emergencyName],
-            ["Relation",    patient.emergencyRelation || "—"],
-            ["Phone",       patient.emergencyPhone],
-          ]} />
-        ) : (
-          <div className="empty-state" style={{ padding: "20px 0" }}>
-            <i className="ti ti-phone-off empty-state-icon" style={{ fontSize: 24 }} />
-            <div className="empty-state-sub">No emergency contact on file</div>
-          </div>
-        )}
-      </InfoCard>
-
-      {/* Medical (role-gated) */}
-      {can(role, "viewMedical") && (
-        <InfoCard title="Medical Information" icon="ti-heart-rate-monitor" iconBg="var(--red-bg)" iconColor="var(--red)">
-          <InfoGrid cols={1} rows={[
-            ["Allergies",    patient.allergies || "None known"],
-            ["Blood Group",  patient.bloodGroup],
-            ["Conditions",   (patient.conditions || []).join(", ") || "None"],
-            ["Medications",  (patient.medications || []).join(", ") || "None"],
-          ]} />
-        </InfoCard>
-      )}
-
-      {/* Insurance */}
-      {can(role, "viewBilling") && (
-        <InfoCard title="Insurance" icon="ti-shield" iconBg="var(--green-bg)" iconColor="var(--green)">
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
-            <InsuranceBadge status={patient.insuranceStatus} />
-          </div>
-          {patient.insurer !== "None" ? (
-            <InfoGrid cols={1} rows={[
-              ["Provider",       patient.insurer],
-              ["Policy Number",  patient.policyNumber || "—"],
-              ["Expiry",         fmtDate(patient.insuranceExpiry)],
-            ]} />
-          ) : (
-            <p style={{ fontSize: "var(--font-sm)", color: "var(--muted)" }}>No insurance on file</p>
-          )}
-        </InfoCard>
-      )}
-
-      {/* Quick Actions */}
-      <InfoCard title="Quick Actions" icon="ti-bolt" iconBg="var(--purple-bg)" iconColor="var(--purple)">
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 8 }}>
-          {QUICK_ACTIONS.map((a) => (
-            <button key={a.label} onClick={() => onQuickAction(a.label)} style={{
-              display: "flex", flexDirection: "column", alignItems: "center", gap: 6,
-              padding: "12px 8px", borderRadius: "var(--radius)", border: "1px solid var(--border)",
-              background: "var(--surface2)", cursor: "pointer", transition: "all 0.15s",
-            }}
-            onMouseOver={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "var(--surface3)"; }}
-            onMouseOut={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "var(--surface2)"; }}
-            >
-              <div style={{
-                width: 32, height: 32, borderRadius: "var(--radius)",
-                background: a.color + "15", display: "flex", alignItems: "center", justifyContent: "center",
-              }}>
-                <i className={`ti ${a.icon}`} style={{ fontSize: 16, color: a.color }} />
-              </div>
-              <span style={{ fontSize: "var(--font-2xs)", fontWeight: 500, color: "var(--muted)", textAlign: "center", lineHeight: 1.3 }}>
-                {a.label}
-              </span>
-            </button>
-          ))}
-        </div>
-      </InfoCard>
-
-      {/* Visit Readiness */}
-      <div className="card card-padded">
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-          <span style={{ fontSize: "var(--font-sm)", fontWeight: 700 }}>Visit Readiness</span>
-          <span style={{
-            fontSize: "var(--font-xs)", fontWeight: 700,
-            color: readiness.ready ? "var(--green)" : "var(--amber)",
-            background: readiness.ready ? "var(--green-bg)" : "var(--amber-bg)",
-            padding: "2px 6px", borderRadius: "var(--radius-sm)",
-          }}>
-            {readiness.done}/{readiness.total}
-          </span>
-        </div>
-        <div className="progress-bar" style={{ marginBottom: 10 }}>
-          <div className="progress-fill" style={{
-            width: `${(readiness.done / readiness.total) * 100}%`,
-            background: readiness.ready ? "var(--green)" : "var(--amber)",
-          }} />
-        </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-          {readiness.items.map((item) => (
-            <button key={item.key} onClick={() => onVerificationToggle(item.key)} style={{
-              display: "flex", alignItems: "center", gap: 8, padding: "6px 8px",
-              borderRadius: "var(--radius-sm)", border: `1px solid ${item.done ? "var(--green-border)" : "var(--red-border)"}`,
-              background: item.done ? "var(--green-bg)" : "transparent",
-              cursor: "pointer", textAlign: "left", transition: "all 0.15s",
-            }}>
-              <VerifiedDot done={item.done} />
-              <span style={{ fontSize: "var(--font-xs)", color: item.done ? "var(--green)" : "var(--text)" }}>
-                {item.label}
-              </span>
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Appointments */}
-      <div className="card card-padded">
-        <div className="section-label">Appointments</div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <span style={{ fontSize: "var(--font-xs)", color: "var(--muted)" }}>Last Visit</span>
-            <span style={{ fontSize: "var(--font-sm)", fontWeight: 600 }}>{fmtDate(patient.lastVisit)}</span>
-          </div>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <span style={{ fontSize: "var(--font-xs)", color: "var(--muted)" }}>Next Appointment</span>
-            <span style={{ fontSize: "var(--font-sm)", fontWeight: 600 }}>
-              {patient.nextAppointment ? fmtDate(patient.nextAppointment) : (
-                <span style={{ color: "var(--amber)", fontSize: "var(--font-xs)" }}>Not scheduled</span>
-              )}
-            </span>
-          </div>
-          {patient.followUpDate && (
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <span style={{ fontSize: "var(--font-xs)", color: "var(--muted)" }}>Follow-Up Due</span>
-              <span style={{ fontSize: "var(--font-sm)", fontWeight: 600, color: "var(--amber)" }}>
-                {fmtDate(patient.followUpDate)}
-              </span>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Family */}
-      {(patient.family || []).length > 0 && (
-        <div className="card card-padded">
-          <div className="section-label">Family Members</div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            {(patient.family || []).map((f) => (
-              <div key={f.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 8px", borderRadius: "var(--radius-sm)", background: "var(--surface2)" }}>
-                <AvatarCircle name={f.name} size="sm" />
-                <div>
-                  <div style={{ fontSize: "var(--font-sm)", fontWeight: 600 }}>{f.name}</div>
-                  <div style={{ fontSize: "var(--font-xs)", color: "var(--muted)" }}>{f.relation}</div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Pinned notes */}
-      {(patient.notes || []).filter((n) => n.pinned).length > 0 && (
-        <div className="card card-padded">
-          <div className="section-label">
-            <i className="ti ti-pin" style={{ fontSize: 10, marginRight: 4 }} />
-            Pinned Notes
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            {(patient.notes || []).filter((n) => n.pinned).map((n) => (
-              <div key={n.id} style={{
-                padding: "8px 10px", borderRadius: "var(--radius-sm)",
-                background: "#fffbeb", border: "1px solid var(--amber-border)",
-                fontSize: "var(--font-xs)", color: "#92400e",
-              }}>
-                {n.text}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ─── Timeline Tab ─────────────────────────────────────────────────────────────
-function TimelineTab({
-  patient, role, onAddEvent, onDeleteEvent,
-}: {
-  patient: Patient;
-  role: UserRole;
-  onAddEvent: (e: Omit<TimelineEvent, "id">) => void;
-  onDeleteEvent: (id: string) => void;
-}) {
-  const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ type: "note", label: "Doctor Note Added", icon: "ti-notes", color: "#7c4fff", note: "", date: new Date().toISOString().split("T")[0], doctor: "" });
-
-  const events = [...(patient.timeline || [])].sort(
-    (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
-  );
-
-  function submit() {
-    onAddEvent({ ...form, date: new Date(form.date) });
-    setShowForm(false);
-    setForm({ type: "note", label: "Doctor Note Added", icon: "ti-notes", color: "#7c4fff", note: "", date: new Date().toISOString().split("T")[0], doctor: "" });
-  }
-
-  return (
-    <div style={{ maxWidth: 700 }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
-        <span style={{ fontSize: "var(--font-md)", fontWeight: 700 }}>Clinical Timeline</span>
-        {can(role, "editPatient") && (
-          <button className="btn btn-primary" style={{ fontSize: "var(--font-sm)" }} onClick={() => setShowForm(true)}>
-            <i className="ti ti-plus" style={{ fontSize: 13 }} />
-            Add Event
-          </button>
-        )}
-      </div>
-
-      {showForm && (
-        <div className="card card-padded" style={{ marginBottom: 16, border: "1px solid var(--accent)40" }}>
-          <div className="section-label">New Timeline Event</div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-            <div className="field-group">
-              <label className="field-label">Type</label>
-              <select value={form.type} onChange={(e) => {
-                const types: Record<string, { label: string; icon: string; color: string }> = {
-                  note:         { label: "Doctor Note Added",      icon: "ti-notes",          color: "#7c4fff" },
-                  appointment:  { label: "Appointment Booked",     icon: "ti-calendar",       color: "#7c4fff" },
-                  consultation: { label: "Consultation Completed", icon: "ti-stethoscope",    color: "#00b4a0" },
-                  prescription: { label: "Prescription Issued",    icon: "ti-pill",           color: "#ff7c4f" },
-                  report:       { label: "Report Uploaded",        icon: "ti-file-analytics", color: "#4f7cff" },
-                  followup:     { label: "Follow-Up Scheduled",    icon: "ti-clock",          color: "#f0a500" },
-                };
-                const t = types[e.target.value] || types.note;
-                setForm((f) => ({ ...f, type: e.target.value, ...t }));
-              }} style={{ width: "100%" }}>
-                <option value="note">Doctor Note</option>
-                <option value="appointment">Appointment</option>
-                <option value="consultation">Consultation</option>
-                <option value="prescription">Prescription</option>
-                <option value="report">Report</option>
-                <option value="followup">Follow-Up</option>
-              </select>
-            </div>
-            <div className="field-group">
-              <label className="field-label">Date</label>
-              <input type="date" value={form.date} onChange={(e) => setForm((f) => ({ ...f, date: e.target.value }))} style={{ width: "100%" }} />
-            </div>
-            <div className="field-group">
-              <label className="field-label">Doctor</label>
-              <input type="text" value={form.doctor} onChange={(e) => setForm((f) => ({ ...f, doctor: e.target.value }))} placeholder="Dr. Name" style={{ width: "100%" }} />
-            </div>
-            <div className="field-group">
-              <label className="field-label">Note</label>
-              <input type="text" value={form.note || ""} onChange={(e) => setForm((f) => ({ ...f, note: e.target.value }))} placeholder="Optional note" style={{ width: "100%" }} />
-            </div>
-          </div>
-          <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-            <button className="btn btn-primary" style={{ fontSize: "var(--font-sm)" }} onClick={submit}>Add Event</button>
-            <button className="btn btn-ghost" style={{ fontSize: "var(--font-sm)" }} onClick={() => setShowForm(false)}>Cancel</button>
-          </div>
-        </div>
-      )}
-
-      {events.length === 0 ? (
-        <div className="empty-state">
-          <i className="ti ti-timeline empty-state-icon" />
-          <div className="empty-state-text">No timeline events</div>
-          <div className="empty-state-sub">Add events to track the patient's clinical history</div>
-        </div>
-      ) : (
-        <div style={{ position: "relative", paddingLeft: 20 }}>
-          <div className="timeline-line" />
-          {events.map((ev, idx) => (
-            <div key={ev.id} style={{ display: "flex", gap: 12, marginBottom: 14, position: "relative" }}>
-              <div className="timeline-dot" style={{ background: ev.color + "20" }}>
-                <i className={`ti ${ev.icon}`} style={{ fontSize: 13, color: ev.color }} />
-              </div>
-              <div style={{ flex: 1, paddingTop: 4 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 8, justifyContent: "space-between" }}>
-                  <div>
-                    <span style={{ fontSize: "var(--font-sm)", fontWeight: 600 }}>{ev.label}</span>
-                    {ev.doctor && (
-                      <span style={{ fontSize: "var(--font-xs)", color: "var(--muted)", marginLeft: 6 }}>
-                        · {ev.doctor}
-                      </span>
-                    )}
-                  </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                    <span style={{ fontSize: "var(--font-xs)", color: "var(--muted)" }}>
-                      {fmtDate(ev.date)}
-                    </span>
-                    {can(role, "editPatient") && (
-                      <button className="btn-icon" style={{ padding: 4 }} onClick={() => onDeleteEvent(ev.id)}>
-                        <i className="ti ti-trash" style={{ fontSize: 12, color: "var(--red)" }} />
-                      </button>
-                    )}
-                  </div>
-                </div>
-                {ev.note && (
-                  <p style={{
-                    fontSize: "var(--font-xs)", color: "var(--muted)", marginTop: 4,
-                    padding: "6px 10px", background: "var(--surface2)", borderRadius: "var(--radius-sm)",
-                    borderLeft: `3px solid ${ev.color}`,
-                  }}>
-                    {ev.note}
-                  </p>
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ─── Documents Tab ────────────────────────────────────────────────────────────
-function DocumentsTab({
-  patient, role, onAddDoc, onDeleteDoc,
-}: {
-  patient: Patient;
-  role: UserRole;
-  onAddDoc: (d: Omit<PatientDocument, "id">) => void;
-  onDeleteDoc: (id: string) => void;
-}) {
-  const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ type: "Medical Report", uploaded: new Date().toISOString().split("T")[0], size: "—", verified: false });
-
-  const DOC_ICONS: Record<string, string> = {
-    "Insurance Card": "ti-shield", "Passport": "ti-passport", "National ID": "ti-id",
-    "Consent Form": "ti-writing", "Medical Report": "ti-file-analytics", "Referral Letter": "ti-file-text",
-  };
-
-  return (
-    <div>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
-        <span style={{ fontSize: "var(--font-md)", fontWeight: 700 }}>Documents</span>
-        {can(role, "editPatient") && (
-          <button className="btn btn-primary" style={{ fontSize: "var(--font-sm)" }} onClick={() => setShowForm(true)}>
-            <i className="ti ti-plus" style={{ fontSize: 13 }} /> Add Document
-          </button>
-        )}
-      </div>
-
-      {showForm && (
-        <div className="card card-padded" style={{ marginBottom: 16, border: "1px solid var(--accent)40" }}>
-          <div className="section-label">New Document</div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-            <div className="field-group">
-              <label className="field-label">Type</label>
-              <select value={form.type} onChange={(e) => setForm((f) => ({ ...f, type: e.target.value }))} style={{ width: "100%" }}>
-                {["Insurance Card","Passport","National ID","Consent Form","Medical Report","Referral Letter"].map((t) => (
-                  <option key={t}>{t}</option>
-                ))}
-              </select>
-            </div>
-            <div className="field-group">
-              <label className="field-label">Upload Date</label>
-              <input type="date" value={form.uploaded} onChange={(e) => setForm((f) => ({ ...f, uploaded: e.target.value }))} style={{ width: "100%" }} />
-            </div>
-          </div>
-          <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-            <button className="btn btn-primary" style={{ fontSize: "var(--font-sm)" }} onClick={() => { onAddDoc(form); setShowForm(false); }}>
-              Add
-            </button>
-            <button className="btn btn-ghost" style={{ fontSize: "var(--font-sm)" }} onClick={() => setShowForm(false)}>Cancel</button>
-          </div>
-        </div>
-      )}
-
-      {(patient.documents || []).length === 0 ? (
-        <div className="empty-state">
-          <i className="ti ti-files empty-state-icon" />
-          <div className="empty-state-text">No documents</div>
-          <div className="empty-state-sub">Upload patient documents for this record</div>
-        </div>
-      ) : (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: 10 }}>
-          {(patient.documents || []).map((doc) => (
-            <div key={doc.id} className="card card-padded" style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
-              <div style={{
-                width: 36, height: 36, borderRadius: "var(--radius)",
-                background: "var(--accent-soft)", display: "flex", alignItems: "center", justifyContent: "center",
-                flexShrink: 0,
-              }}>
-                <i className={`ti ${DOC_ICONS[doc.type] || "ti-file"}`} style={{ fontSize: 16, color: "var(--accent)" }} />
-              </div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: "var(--font-sm)", fontWeight: 600, color: "var(--text)" }}>{doc.type}</div>
-                <div style={{ fontSize: "var(--font-xs)", color: "var(--muted)", marginTop: 2 }}>
-                  {fmtDate(doc.uploaded)} · {doc.size}
-                </div>
-                <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 6 }}>
-                  <span className="tag" style={{ background: doc.verified ? "var(--green-bg)" : "var(--amber-bg)", color: doc.verified ? "var(--green)" : "var(--amber)" }}>
-                    <i className={`ti ${doc.verified ? "ti-shield-check" : "ti-shield-exclamation"}`} style={{ fontSize: 10 }} />
-                    {doc.verified ? "Verified" : "Pending"}
-                  </span>
-                  {can(role, "deleteDocument") && (
-                    <button className="btn-icon" style={{ padding: 3, marginLeft: "auto" }} onClick={() => onDeleteDoc(doc.id)}>
-                      <i className="ti ti-trash" style={{ fontSize: 12, color: "var(--red)" }} />
-                    </button>
-                  )}
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ─── Notes Tab ────────────────────────────────────────────────────────────────
-function NotesTab({
-  patient, role, onAddNote, onDeleteNote, onTogglePin,
-}: {
-  patient: Patient;
-  role: UserRole;
-  onAddNote: (n: Omit<PatientNote, "id">) => void;
-  onDeleteNote: (id: string) => void;
-  onTogglePin: (id: string) => void;
-}) {
-  const [showForm, setShowForm] = useState(false);
-  const [text,     setText]     = useState("");
-  const [category, setCategory] = useState("general");
-
-  const CATEGORIES = [
-    { id: "general",   label: "General",   color: "var(--muted)" },
-    { id: "clinical",  label: "Clinical",  color: "var(--red)" },
-    { id: "billing",   label: "Billing",   color: "var(--amber)" },
-    { id: "followup",  label: "Follow-Up", color: "var(--blue)" },
-  ];
-
-  const notes = [...(patient.notes || [])].sort((a, b) => {
-    if (a.pinned && !b.pinned) return -1;
-    if (!a.pinned && b.pinned) return 1;
-    return new Date(b.date).getTime() - new Date(a.date).getTime();
-  });
-
-  function submit() {
-    if (!text.trim()) return;
-    onAddNote({ text: text.trim(), pinned: false, date: new Date().toISOString().split("T")[0], category });
-    setText("");
-    setShowForm(false);
-  }
-
-  return (
-    <div style={{ maxWidth: 700 }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
-        <span style={{ fontSize: "var(--font-md)", fontWeight: 700 }}>Notes</span>
-        {can(role, "editPatient") && (
-          <button className="btn btn-primary" style={{ fontSize: "var(--font-sm)" }} onClick={() => setShowForm(true)}>
-            <i className="ti ti-plus" style={{ fontSize: 13 }} /> Add Note
-          </button>
-        )}
-      </div>
-
-      {showForm && (
-        <div className="card card-padded" style={{ marginBottom: 16, border: "1px solid var(--accent)40" }}>
-          <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
-            {CATEGORIES.map((c) => (
-              <button key={c.id} onClick={() => setCategory(c.id)} style={{
-                padding: "4px 10px", borderRadius: "var(--radius-full)", fontSize: "var(--font-xs)", fontWeight: 600,
-                border: `1px solid ${category === c.id ? c.color : "var(--border)"}`,
-                background: category === c.id ? c.color + "15" : "transparent",
-                color: category === c.id ? c.color : "var(--muted)", cursor: "pointer",
-              }}>{c.label}</button>
-            ))}
-          </div>
-          <textarea value={text} onChange={(e) => setText(e.target.value)}
-            placeholder="Write a note…" rows={3}
-            style={{ width: "100%", resize: "vertical" }}
-          />
-          <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-            <button className="btn btn-primary" style={{ fontSize: "var(--font-sm)" }} onClick={submit}>Save Note</button>
-            <button className="btn btn-ghost" style={{ fontSize: "var(--font-sm)" }} onClick={() => setShowForm(false)}>Cancel</button>
-          </div>
-        </div>
-      )}
-
-      {notes.length === 0 ? (
-        <div className="empty-state">
-          <i className="ti ti-notes empty-state-icon" />
-          <div className="empty-state-text">No notes yet</div>
-          <div className="empty-state-sub">Add notes to track important information</div>
-        </div>
-      ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          {notes.map((n) => {
-            const cat = CATEGORIES.find((c) => c.id === n.category) || CATEGORIES[0];
-            return (
-              <div key={n.id} className="card card-padded" style={{
-                border: n.pinned ? "1px solid var(--amber-border)" : "1px solid var(--border)",
-                background: n.pinned ? "var(--amber-bg)" : "var(--surface)",
-              }}>
-                <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8 }}>
-                  <p style={{ fontSize: "var(--font-sm)", color: "var(--text)", lineHeight: 1.6, flex: 1 }}>{n.text}</p>
-                  <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
-                    <button className="btn-icon" style={{ padding: 4 }} onClick={() => onTogglePin(n.id)}>
-                      <i className={`ti ${n.pinned ? "ti-pin-filled" : "ti-pin"}`} style={{ fontSize: 12, color: n.pinned ? "var(--amber)" : "var(--muted)" }} />
-                    </button>
-                    {can(role, "editPatient") && (
-                      <button className="btn-icon" style={{ padding: 4 }} onClick={() => onDeleteNote(n.id)}>
-                        <i className="ti ti-trash" style={{ fontSize: 12, color: "var(--red)" }} />
-                      </button>
-                    )}
-                  </div>
-                </div>
-                <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8 }}>
-                  <span className="tag" style={{ background: cat.color + "15", color: cat.color }}>
-                    {cat.label}
-                  </span>
-                  <span style={{ fontSize: "var(--font-xs)", color: "var(--muted)" }}>
-                    {fmtDate(n.date)}
-                    {n.author && ` · ${n.author}`}
-                  </span>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
     </div>
   );
 }
@@ -2629,7 +1851,7 @@ function ClinicalSupportTab({ patient }: { patient: Patient }) {
           </div>
           <div style={{ padding: 12, borderRadius: "var(--radius)", background: "var(--surface3)" }}>
             <div style={{ fontSize: "var(--font-xs)", color: "var(--muted)", marginBottom: 4 }}>Risk Score</div>
-            <div style={{ fontSize: "var(--font-sm)", fontWeight: 600 }}>{calcRiskScore(patient)}</div>
+            <div style={{ fontSize: "var(--font-sm)", fontWeight: 600 }}>{calcRiskScore(patient).score}</div>
           </div>
         </div>
       </div>
@@ -2950,7 +2172,7 @@ function ConsultationModal({ patient, onClose, onAddTimelineEvent }: { patient: 
       icon: "ti-stethoscope",
       color: "#00b4a0",
       date: new Date(),
-      note: `Diagnosis: ${diagnosis}. Vitals: BP ${vitals.bp}, Pulse ${vitals.bpm}, Temp ${vitals.temp}°C. Notes: ${notes}`,
+      note: `Diagnosis: ${diagnosis}. Vitals: BP ${vitals.bp}, Pulse ${vitals.pulse}, Temp ${vitals.temp}°C. Notes: ${notes}`,
       doctor: patient.doctor,
     });
     onClose();

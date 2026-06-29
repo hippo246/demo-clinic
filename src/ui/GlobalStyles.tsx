@@ -372,6 +372,54 @@ export default function GlobalStyles({ dark }: GlobalStylesProps) {
         .form-row {
           grid-template-columns: 1fr !important;
         }
+        /* Make toolbar filters stack vertically on mobile */
+        .toolbar-mobile {
+          flex-direction: column !important;
+          align-items: stretch !important;
+        }
+        .toolbar-mobile > div {
+          width: 100% !important;
+          flex: 1 1 auto !important;
+          min-width: auto !important;
+        }
+        .toolbar-mobile select {
+          width: 100% !important;
+          flex: 1 1 auto !important;
+        }
+        /* Make stat cards stack on mobile */
+        .stat-card {
+          grid-column: span 2 !important;
+        }
+        /* Make workflow indicators stack on mobile */
+        .card-padded > div[style*="gridTemplateColumns"] {
+          grid-template-columns: repeat(2, 1fr) !important;
+        }
+        /* Improve touch targets on mobile */
+        .btn {
+          min-height: 48px;
+          min-width: 48px;
+          padding: 12px 16px;
+          font-size: 14px;
+        }
+        .btn-icon {
+          min-width: 48px;
+          min-height: 48px;
+          padding: 12px;
+        }
+        /* Make cards full width on mobile */
+        .card {
+          margin: 0 0 12px 0;
+        }
+        /* Improve spacing on mobile */
+        .crm-root {
+          padding-bottom: env(safe-area-inset-bottom);
+        }
+        /* Make dropdowns full width on mobile */
+        .mobile-only[style*="position: absolute"] {
+          left: 0 !important;
+          right: 0 !important;
+          width: 100% !important;
+        }
       }
 
       /* ── Tabs ── */
@@ -449,7 +497,8 @@ export default function GlobalStyles({ dark }: GlobalStylesProps) {
       }
       @media (max-width: 768px) {
         .desktop-only { display: none !important; }
-        .mobile-only { display: block !important; }
+        .mobile-only { display: flex !important; }
+        .mobile-only-block { display: block !important; }
         .crm-root { --font-base: 14px; --font-sm: 13px; --font-xs: 12px; }
       }
       @media (min-width: 769px) and (max-width: 1024px) {
@@ -458,6 +507,8 @@ export default function GlobalStyles({ dark }: GlobalStylesProps) {
       }
       @media (min-width: 769px) {
         .mobile-only { display: none !important; }
+        .mobile-only-block { display: none !important; }
+        .desktop-only { display: flex !important; }
       }
       @media (min-width: 1025px) {
         .lg-only { display: block !important; }
@@ -496,6 +547,343 @@ export default function GlobalStyles({ dark }: GlobalStylesProps) {
       }
       .sidebar-nav-item .nav-icon {
         font-size: 16px; width: 20px; text-align: center; flex-shrink: 0;
+      }
+
+      /* ── Print Styles ── */
+      @media print {
+        * {
+          -webkit-print-color-adjust: exact !important;
+          print-color-adjust: exact !important;
+        }
+        
+        body {
+          background: white !important;
+          color: black !important;
+          font-size: 11pt;
+          line-height: 1.4;
+        }
+        
+        .crm-root {
+          background: white !important;
+          color: black !important;
+        }
+        
+        /* Hide UI elements when printing */
+        .modal-backdrop,
+        .modal,
+        .toolbar-mobile,
+        .tab-bar,
+        .btn,
+        .btn-icon,
+        button,
+        .desktop-only,
+        .mobile-only,
+        .xs-hide,
+        .xs-only,
+        .sm-hide,
+        .sm-only,
+        .lg-hide,
+        .lg-only,
+        .tablet-only,
+        .sidebar-nav-item,
+        .quality-bar,
+        .stats-bar,
+        .search-input,
+        .filter-select,
+        .pagination,
+        .bulk-actions,
+        .toast-container,
+        .tooltip,
+        [data-tip] {
+          display: none !important;
+        }
+        
+        /* Print-specific layout */
+        .print-header {
+          display: block !important;
+          page-break-after: avoid;
+          margin-bottom: 20px;
+          padding-bottom: 15px;
+          border-bottom: 2px solid #000;
+        }
+        
+        .print-footer {
+          display: block !important;
+          page-break-before: avoid;
+          margin-top: 20px;
+          padding-top: 15px;
+          border-top: 1px solid #ccc;
+          font-size: 9pt;
+          color: #666;
+        }
+        
+        .print-section {
+          page-break-inside: avoid;
+          margin-bottom: 15px;
+        }
+        
+        .print-section-title {
+          font-size: 12pt;
+          font-weight: 700;
+          text-transform: uppercase;
+          letter-spacing: 0.05em;
+          margin-bottom: 10px;
+          padding-bottom: 5px;
+          border-bottom: 1px solid #ccc;
+          color: #000;
+        }
+        
+        .print-table {
+          width: 100%;
+          border-collapse: collapse;
+          margin-bottom: 15px;
+        }
+        
+        .print-table th,
+        .print-table td {
+          border: 1px solid #ccc;
+          padding: 8px 10px;
+          text-align: left;
+          font-size: 10pt;
+        }
+        
+        .print-table th {
+          background: #f5f5f5;
+          font-weight: 700;
+          text-transform: uppercase;
+          font-size: 9pt;
+        }
+        
+        .print-table tr:nth-child(even) {
+          background: #f9f9f9;
+        }
+        
+        .print-grid {
+          display: grid;
+          grid-template-columns: repeat(2, 1fr);
+          gap: 10px;
+          margin-bottom: 15px;
+        }
+        
+        .print-grid-item {
+          padding: 8px;
+          border: 1px solid #e0e0e0;
+          background: #fafafa;
+        }
+        
+        .print-label {
+          font-size: 9pt;
+          font-weight: 600;
+          color: #666;
+          text-transform: uppercase;
+          margin-bottom: 3px;
+        }
+        
+        .print-value {
+          font-size: 11pt;
+          font-weight: 500;
+          color: #000;
+        }
+        
+        .print-badge {
+          display: inline-block;
+          padding: 3px 8px;
+          border-radius: 3px;
+          font-size: 9pt;
+          font-weight: 600;
+          text-transform: uppercase;
+        }
+        
+        .print-badge-success {
+          background: #e8f5e9;
+          color: #2e7d32;
+          border: 1px solid #c8e6c9;
+        }
+        
+        .print-badge-warning {
+          background: #fff3e0;
+          color: #ef6c00;
+          border: 1px solid #ffe0b2;
+        }
+        
+        .print-badge-danger {
+          background: #ffebee;
+          color: #c62828;
+          border: 1px solid #ffcdd2;
+        }
+        
+        .print-badge-info {
+          background: #e3f2fd;
+          color: #1565c0;
+          border: 1px solid #bbdefb;
+        }
+        
+        .print-signature {
+          margin-top: 30px;
+          padding-top: 20px;
+          border-top: 1px solid #000;
+        }
+        
+        .print-signature-line {
+          width: 200px;
+          border-bottom: 1px solid #000;
+          margin-bottom: 5px;
+        }
+        
+        .print-watermark {
+          position: fixed;
+          top: 50%;
+          left: 50%;
+          transform: translate(-50%, -50%) rotate(-45deg);
+          font-size: 72pt;
+          color: rgba(0, 0, 0, 0.05);
+          font-weight: 700;
+          text-transform: uppercase;
+          pointer-events: none;
+          z-index: 0;
+        }
+        
+        /* Prescription-specific styles */
+        .prescription-header {
+          text-align: center;
+          margin-bottom: 20px;
+        }
+        
+        .prescription-logo {
+          font-size: 24pt;
+          font-weight: 800;
+          color: #000;
+          margin-bottom: 5px;
+        }
+        
+        .prescription-subtitle {
+          font-size: 10pt;
+          color: #666;
+        }
+        
+        .prescription-symbol {
+          font-size: 48pt;
+          font-weight: 700;
+          color: #000;
+          text-align: center;
+          margin: 20px 0;
+        }
+        
+        .prescription-item {
+          margin-bottom: 15px;
+          padding: 10px;
+          border: 1px solid #e0e0e0;
+          background: #fafafa;
+        }
+        
+        .prescription-drug {
+          font-size: 11pt;
+          font-weight: 700;
+          margin-bottom: 5px;
+        }
+        
+        .prescription-dosage {
+          font-size: 10pt;
+          color: #666;
+          margin-bottom: 3px;
+        }
+        
+        .prescription-instructions {
+          font-size: 10pt;
+          font-style: italic;
+          color: #333;
+        }
+        
+        /* Medical report styles */
+        .medical-report-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: flex-start;
+          margin-bottom: 20px;
+          padding-bottom: 15px;
+          border-bottom: 2px solid #000;
+        }
+        
+        .medical-report-title {
+          font-size: 14pt;
+          font-weight: 700;
+          text-transform: uppercase;
+          letter-spacing: 0.1em;
+        }
+        
+        .medical-report-date {
+          font-size: 10pt;
+          color: #666;
+        }
+        
+        .vital-signs-grid {
+          display: grid;
+          grid-template-columns: repeat(4, 1fr);
+          gap: 10px;
+          margin-bottom: 15px;
+        }
+        
+        .vital-sign-item {
+          text-align: center;
+          padding: 10px;
+          border: 1px solid #e0e0e0;
+          background: #fafafa;
+        }
+        
+        .vital-sign-value {
+          font-size: 14pt;
+          font-weight: 700;
+          color: #000;
+        }
+        
+        .vital-sign-label {
+          font-size: 9pt;
+          color: #666;
+          text-transform: uppercase;
+        }
+        
+        /* Billing statement styles */
+        .billing-statement-header {
+          text-align: center;
+          margin-bottom: 20px;
+          padding-bottom: 15px;
+          border-bottom: 2px solid #000;
+        }
+        
+        .billing-statement-title {
+          font-size: 16pt;
+          font-weight: 700;
+          text-transform: uppercase;
+          letter-spacing: 0.1em;
+        }
+        
+        .billing-statement-number {
+          font-size: 11pt;
+          color: #666;
+          margin-top: 5px;
+        }
+        
+        .billing-summary {
+          display: flex;
+          justify-content: space-between;
+          margin-top: 20px;
+          padding-top: 15px;
+          border-top: 2px solid #000;
+        }
+        
+        .billing-total {
+          font-size: 14pt;
+          font-weight: 700;
+        }
+        
+        /* Page breaks */
+        .page-break {
+          page-break-before: always;
+        }
+        
+        .no-break {
+          page-break-inside: avoid;
+        }
       }
     `}</style>
   );

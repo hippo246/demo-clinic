@@ -69,6 +69,10 @@ export const ALERT_CONFIG: Record<AlertType, { bg: string; color: string; severi
   "High Risk":       { bg: "#fee2e2", color: "#991b1b", severity: "critical" },
 };
 
+export const ALERT_SEVERITY: Record<AlertType, "critical" | "medium" | "low"> = Object.fromEntries(
+  Object.entries(ALERT_CONFIG).map(([k, v]) => [k, v.severity])
+) as Record<AlertType, "critical" | "medium" | "low">;
+
 /**
  * Derived from ALERT_CONFIG — use this instead of the separate ALERT_SEVERITY map
  * to keep severity in one place.

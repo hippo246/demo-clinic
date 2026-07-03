@@ -29,7 +29,7 @@ export default function PatientForm({ mode, patient, onSave, onClose, role, exis
   } : EMPTY;
 
   const [form, setForm] = useState<Partial<Patient>>(initial);
-  const [section, setSection] = useState<"personal" | "medical" | "insurance" | "status">("personal");
+  const [section, setSection] = useState<"personal" | "medical" | "history" | "medications" | "insurance" | "status">("personal");
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [warnings, setWarnings] = useState<string[]>([]);
   const [touched, setTouched] = useState<Record<string, boolean>>({});
@@ -81,8 +81,8 @@ export default function PatientForm({ mode, patient, onSave, onClose, role, exis
       if (key === "firstName" || key === "lastName") {
         updated.name = `${updated.firstName || ""} ${updated.lastName || ""}`.trim();
       }
-      if (key === "dob" && value) {
-        updated.age = calcAge(value as string);
+      if (key === "dob") {
+        updated.age = value ? calcAge(value as string) : 0;
       }
       // Auto-set insurance status
       if (key === "insuranceExpiry" || key === "insurer") {
@@ -147,8 +147,11 @@ export default function PatientForm({ mode, patient, onSave, onClose, role, exis
       family:    form.family || [],
       consents:  form.consents || {},
     };
-    onSave(data);
-    setIsSubmitting(false);
+    try {
+      onSave(data);
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
   function toggleAlert(alert: AlertType) {
@@ -223,7 +226,7 @@ export default function PatientForm({ mode, patient, onSave, onClose, role, exis
         {/* Sections */}
         <div style={{ display: "flex", gap: 0, borderBottom: "1px solid var(--border)", padding: "0 20px" }}>
           {SECTIONS.map(({ id, label, icon }) => (
-            <button key={id} onClick={() => setSection(id as any)} style={{
+            <button key={id} onClick={() => setSection(id)} style={{
               display: "inline-flex", alignItems: "center", gap: 6,
               padding: "10px 14px", borderBottom: `2px solid ${section === id ? "var(--accent)" : "transparent"}`,
               color: section === id ? "var(--accent)" : "var(--muted)",
@@ -284,7 +287,7 @@ export default function PatientForm({ mode, patient, onSave, onClose, role, exis
                     placeholder="+91 XXXXX XXXXX" 
                     style={{ width: "100%", borderColor: errors.phone ? "var(--red)" : undefined }} 
                   />
-                  {touched.phone && form.phone && form.phone.length >= 10 && (
+                  {touched.phone && form.phone && /^\+?[0-9\s\-\(\)]{10,}$/.test(form.phone) && (
                     <span style={{ fontSize: "var(--font-2xs)", color: "var(--green)", marginTop: 2 }}>
                       <i className="ti ti-check" style={{ fontSize: 8 }} /> Valid format
                     </span>
@@ -475,7 +478,7 @@ export default function PatientForm({ mode, patient, onSave, onClose, role, exis
 
           {section === "insurance" && (
             <FormSection>
-              <FormRow>
+              <div style={{ display: "grid", gridTemplateColumns: form.insurer !== "None" ? "repeat(3, 1fr)" : "1fr", gap: 12 }} className="form-row">
                 <Field label="Insurance Provider">
                   <select value={form.insurer || "None"} onChange={(e) => update("insurer", e.target.value)} style={{ width: "100%" }}>
                     {INSURERS.map((i) => <option key={i}>{i}</option>)}
@@ -491,7 +494,7 @@ export default function PatientForm({ mode, patient, onSave, onClose, role, exis
                     </Field>
                   </>
                 )}
-              </FormRow>
+              </div>
             </FormSection>
           )}
 
@@ -529,7 +532,7 @@ export default function PatientForm({ mode, patient, onSave, onClose, role, exis
         }}>
           <div style={{ display: "flex", gap: 6 }}>
             {SECTIONS.map(({ id, label }) => (
-              <button key={id} onClick={() => setSection(id as any)} style={{
+              <button key={id} onClick={() => setSection(id)} style={{
                 padding: "4px 10px", borderRadius: "var(--radius-full)",
                 fontSize: "var(--font-xs)", cursor: "pointer",
                 background: section === id ? "var(--accent)" : "transparent",

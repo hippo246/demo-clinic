@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import type { NavTab } from "./components/TopBar";
 
 const NAV_TABS: { id: NavTab; label: string; icon: string }[] = [
@@ -13,44 +13,92 @@ interface SidebarProps {
   activeTab: NavTab;
   setActiveTab: (t: NavTab) => void;
   dark: boolean;
+  /** Optional controlled collapse; omit to use internal state */
+  collapsed?: boolean;
+  onCollapsedChange?: (collapsed: boolean) => void;
 }
 
-export default function Sidebar({ activeTab, setActiveTab, dark }: SidebarProps) {
+export default function Sidebar({
+  activeTab,
+  setActiveTab,
+  dark,
+  collapsed: collapsedProp,
+  onCollapsedChange,
+}: SidebarProps) {
+  const [collapsedInternal, setCollapsedInternal] = useState(false);
+
+  const isControlled = collapsedProp !== undefined;
+  const collapsed = isControlled ? collapsedProp : collapsedInternal;
+
+  const toggleCollapsed = () => {
+    const next = !collapsed;
+    if (isControlled) {
+      onCollapsedChange?.(next);
+    } else {
+      setCollapsedInternal(next);
+    }
+  };
+
   return (
     <aside
       className="desktop-only"
       role="navigation"
-      aria-label="Sidebar navigation"
+      aria-label={collapsed ? "Navigation (collapsed)" : "Sidebar navigation"}
+      aria-expanded={!collapsed}
       style={{
-        width: 200,
+        width: collapsed ? 56 : 200,
         flexShrink: 0,
         background: dark ? "#0c0f1a" : "#fff",
         borderRight: "1px solid var(--border)",
+        display: "flex",
         flexDirection: "column",
         padding: "12px 8px",
         gap: 2,
         overflowY: "auto",
+        overflowX: "hidden",
+        transition: "width 0.2s ease",
       }}
     >
-      <div style={{
-        fontSize: "var(--font-2xs)", fontWeight: 700, letterSpacing: "0.08em",
-        textTransform: "uppercase", color: "var(--muted)",
-        padding: "4px 12px 8px",
-      }}>
-        Navigation
-      </div>
+      {!collapsed && (
+        <div style={{
+          fontSize: "var(--font-2xs)", fontWeight: 700, letterSpacing: "0.08em",
+          textTransform: "uppercase", color: "var(--muted)",
+          padding: "4px 12px 8px",
+          whiteSpace: "nowrap",
+        }}>
+          Navigation
+        </div>
+      )}
 
       {NAV_TABS.map(({ id, label, icon }) => (
         <button
           key={id}
           onClick={() => setActiveTab(id)}
           aria-current={activeTab === id ? "page" : undefined}
-          className={`sidebar-nav-item${activeTab === id ? " active" : ""}`}
+          title={collapsed ? label : undefined}
+          className={`sidebar-nav-item${activeTab === id ? " active" : ""}${collapsed ? " collapsed" : ""}`}
         >
           <i className={`ti ${icon} nav-icon`} aria-hidden="true" />
-          {label}
+          {!collapsed && label}
         </button>
       ))}
+
+      <div style={{ flex: 1 }} />
+
+      <div style={{ borderTop: "1px solid var(--border)", margin: "4px 0", opacity: 0.5 }} />
+
+      <button
+        onClick={toggleCollapsed}
+        aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+        className="sidebar-nav-item"
+        style={{ justifyContent: collapsed ? "center" : undefined }}
+      >
+        <i
+          className={`ti ${collapsed ? "ti-layout-sidebar-right-expand" : "ti-layout-sidebar-right-collapse"} nav-icon`}
+          aria-hidden="true"
+        />
+        {!collapsed && "Collapse"}
+      </button>
     </aside>
   );
 }

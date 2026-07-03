@@ -141,6 +141,11 @@ export default function PatientProfile({
   }
 
   function handleQuickAction(action: string) {
+    const medicalActions = ["Start Consultation", "New Prescription"];
+    if (medicalActions.includes(action) && !can(role, "editPatient")) {
+      setQuickAction("Doctor/Admin only in this demo.");
+      return;
+    }
     switch (action) {
       case "Book Appointment":
         setShowAppointmentModal(true);
@@ -155,13 +160,23 @@ export default function PatientProfile({
         setTab("documents");
         break;
       case "Create Invoice":
-        // Navigate to billing page with this patient
+        // Demo-only: no real billing system. Falls through to default demo modal.
+        setQuickAction(action);
         break;
       case "Call Patient":
         handleUpdateFollowUp({
           callAttempts: (patient.callAttempts || 0) + 1,
           lastContacted: new Date().toISOString().split("T")[0],
         });
+        handleAddTimelineEvent({
+          type: "call",
+          label: "Patient Called",
+          icon: "ti-phone",
+          color: "#3b82f6",
+          date: new Date(),
+          note: `Call attempt #${(patient.callAttempts || 0) + 1} logged.`,
+          doctor: patient.doctor,
+        } as Omit<TimelineEvent, "id">);
         break;
       case "Schedule Follow-Up":
         setShowFollowUpModal(true);
@@ -273,6 +288,12 @@ export default function PatientProfile({
               <i className="ti ti-emergency-bed" style={{ fontSize: 14, color: "var(--red)" }} />
               <span className="desktop-only">Emergency</span>
             </button>
+            {onPrint && (
+              <button className="btn btn-ghost" onClick={() => onPrint()} style={{ fontSize: "var(--font-sm)", padding: "12px", minHeight: 44 }}>
+                <i className="ti ti-printer" style={{ fontSize: 14 }} />
+                <span className="desktop-only">Print</span>
+              </button>
+            )}
             {can(role, "editPatient") && (
               <button className="btn btn-primary" onClick={onEditPatient} style={{ fontSize: "var(--font-sm)", padding: "12px", minHeight: 44 }}>
                 <i className="ti ti-edit" style={{ fontSize: 14 }} />
@@ -327,7 +348,7 @@ export default function PatientProfile({
       {/* ── Tab Content ── */}
       <div style={{ flex: 1, overflow: "auto", background: "var(--bg)" }}>
         <div className="fade-in" key={tab} style={{ padding: 16 }}>
-          {tab === "overview"  && <OverviewTab patient={patient} role={role} onVerificationToggle={handleVerificationToggle} snapshot={snapshot} readiness={readiness} onQuickAction={setQuickAction} />}
+          {tab === "overview"  && <OverviewTab patient={patient} role={role} onVerificationToggle={handleVerificationToggle} snapshot={snapshot} readiness={readiness} onQuickAction={handleQuickAction} />}
           {tab === "timeline"  && <TimelineTab patient={patient} role={role} onAddEvent={handleAddTimelineEvent} onDeleteEvent={handleDeleteTimelineEvent} />}
           {tab === "medical"   && <MedicalHistoryTab patient={patient} role={role} onUpdatePatient={onUpdatePatient} />}
           {tab === "clinical"  && <ClinicalSupportTab patient={patient} />}
@@ -355,13 +376,13 @@ export default function PatientProfile({
         <QuickActionModal action={quickAction} patient={patient} onClose={() => setQuickAction(null)} />
       )}
       {showAppointmentModal && (
-        <AppointmentModal patient={patient} onClose={() => setShowAppointmentModal(false)} onUpdatePatient={onUpdatePatient} />
+        <AppointmentModal patient={patient} onClose={() => setShowAppointmentModal(false)} onUpdatePatient={onUpdatePatient} onAddTimelineEvent={handleAddTimelineEvent} />
       )}
       {showConsultationModal && (
         <ConsultationModal patient={patient} onClose={() => setShowConsultationModal(false)} onAddTimelineEvent={handleAddTimelineEvent} />
       )}
       {showPrescriptionModal && (
-        <PrescriptionModal patient={patient} onClose={() => setShowPrescriptionModal(false)} onUpdatePatient={onUpdatePatient} />
+        <PrescriptionModal patient={patient} onClose={() => setShowPrescriptionModal(false)} onUpdatePatient={onUpdatePatient} onAddTimelineEvent={handleAddTimelineEvent} />
       )}
       {showFollowUpModal && (
         <FollowUpModal patient={patient} onClose={() => setShowFollowUpModal(false)} onUpdatePatient={handleUpdateFollowUp} />
@@ -1667,7 +1688,17 @@ function ClinicalSupportTab({ patient }: { patient: Patient }) {
       <div style={{ marginBottom: 24 }}>
         <span style={{ fontSize: "var(--font-md)", fontWeight: 700 }}>Clinical Decision Support</span>
         <div style={{ fontSize: "var(--font-sm)", color: "var(--muted)", marginTop: 4 }}>
-          AI-powered clinical alerts, drug interactions, and treatment recommendations
+          Demo clinical alerts, drug interactions, and treatment suggestions based on sample data
+        </div>
+      </div>
+
+      <div className="card card-padded" style={{
+        marginBottom: 16, background: "var(--amber-bg)", border: "1px solid var(--amber-border, var(--border))",
+        display: "flex", alignItems: "flex-start", gap: 10,
+      }}>
+        <i className="ti ti-alert-triangle" style={{ fontSize: 16, color: "var(--amber)", flexShrink: 0, marginTop: 1 }} />
+        <div style={{ fontSize: "var(--font-sm)", color: "var(--text)" }}>
+          <strong>Demo clinical support only.</strong> This is sample output for demonstration purposes and is not real medical advice. Do not use for actual patient care decisions.
         </div>
       </div>
 
@@ -2061,22 +2092,29 @@ function ConfirmDeleteModal({ patient, onConfirm, onClose }: { patient: Patient;
 
 // ─── Quick Action Modal ───────────────────────────────────────────────────────
 function QuickActionModal({ action, patient, onClose }: { action: string; patient: Patient; onClose: () => void }) {
+  const isDenied = action === "Doctor/Admin only in this demo.";
   return (
     <div className="modal-backdrop">
       <div className="modal" style={{ width: "100%", maxWidth: 420, padding: 24 }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
-          <div style={{ fontSize: "var(--font-md)", fontWeight: 700 }}>{action}</div>
+          <div style={{ fontSize: "var(--font-md)", fontWeight: 700 }}>{isDenied ? "Action Restricted" : action}</div>
           <button className="btn-icon" onClick={onClose}><i className="ti ti-x" style={{ fontSize: 14 }} /></button>
         </div>
         <p style={{ fontSize: "var(--font-sm)", color: "var(--muted)", lineHeight: 1.6 }}>
-          This action would be processed for <strong>{patient.name}</strong>.
-          In a production system this would open the relevant workflow module.
+          {isDenied ? (
+            action
+          ) : (
+            <>Demo action for <strong>{patient.name}</strong>. This is a local demo
+            confirmation — no real invoice, billing, or external system is affected.</>
+          )}
         </p>
         <div style={{ marginTop: 16, display: "flex", gap: 8 }}>
           <button className="btn btn-ghost" style={{ flex: 1 }} onClick={onClose}>Cancel</button>
-          <button className="btn btn-primary" style={{ flex: 1 }} onClick={onClose}>
-            <i className="ti ti-check" style={{ fontSize: 13 }} /> Confirm
-          </button>
+          {!isDenied && (
+            <button className="btn btn-primary" style={{ flex: 1 }} onClick={onClose}>
+              <i className="ti ti-check" style={{ fontSize: 13 }} /> Confirm
+            </button>
+          )}
         </div>
       </div>
     </div>
@@ -2084,7 +2122,7 @@ function QuickActionModal({ action, patient, onClose }: { action: string; patien
 }
 
 // ─── Appointment Modal ────────────────────────────────────────────────────────
-function AppointmentModal({ patient, onClose, onUpdatePatient }: { patient: Patient; onClose: () => void; onUpdatePatient: (p: Patient, action?: string) => void }) {
+function AppointmentModal({ patient, onClose, onUpdatePatient, onAddTimelineEvent }: { patient: Patient; onClose: () => void; onUpdatePatient: (p: Patient, action?: string) => void; onAddTimelineEvent: (e: Omit<TimelineEvent, "id">) => void }) {
   const [date, setDate] = useState("");
   const [time, setTime] = useState("");
   const [type, setType] = useState("General Checkup");
@@ -2098,9 +2136,8 @@ function AppointmentModal({ patient, onClose, onUpdatePatient }: { patient: Pati
       status: "Active" as const,
     };
     onUpdatePatient(updated, "appointment booked");
-    
-    // Add timeline event
-    const event = {
+
+    onAddTimelineEvent({
       type: "appointment",
       label: "Appointment Booked",
       icon: "ti-calendar",
@@ -2108,8 +2145,7 @@ function AppointmentModal({ patient, onClose, onUpdatePatient }: { patient: Pati
       date: new Date(date),
       note: notes || `${type} at ${time}`,
       doctor: patient.doctor,
-    };
-    // This would need to be handled through the parent's handleAddTimelineEvent
+    } as Omit<TimelineEvent, "id">);
     onClose();
   }
 
@@ -2229,7 +2265,7 @@ function ConsultationModal({ patient, onClose, onAddTimelineEvent }: { patient: 
 }
 
 // ─── Prescription Modal ────────────────────────────────────────────────────────
-function PrescriptionModal({ patient, onClose, onUpdatePatient }: { patient: Patient; onClose: () => void; onUpdatePatient: (p: Patient, action?: string) => void }) {
+function PrescriptionModal({ patient, onClose, onUpdatePatient, onAddTimelineEvent }: { patient: Patient; onClose: () => void; onUpdatePatient: (p: Patient, action?: string) => void; onAddTimelineEvent: (e: Omit<TimelineEvent, "id">) => void }) {
   const [medication, setMedication] = useState("");
   const [dosage, setDosage] = useState("");
   const [frequency, setFrequency] = useState("Once daily");
@@ -2243,9 +2279,16 @@ function PrescriptionModal({ patient, onClose, onUpdatePatient }: { patient: Pat
       medications: [...(patient.medications || []), newMed],
     };
     onUpdatePatient(updated, "prescription added");
-    
-    // Add timeline event
-    // This would need to be handled through the parent
+
+    onAddTimelineEvent({
+      type: "prescription",
+      label: "Prescription Added",
+      icon: "ti-pill",
+      color: "#00b4a0",
+      date: new Date(),
+      note: newMed,
+      doctor: patient.doctor,
+    } as Omit<TimelineEvent, "id">);
     onClose();
   }
 

@@ -1,6 +1,37 @@
-import React, { useState } from "react";
-import type { Patient, WaitlistEntry, InsuranceClaim, PreAuthorization } from "./types";
+import React, { useState, useEffect } from "react";
+import type { Patient, AuditEntry, UserRole, WaitlistEntry, InsuranceClaim, PreAuthorization } from "./types";
 import { getPatientStats, fmtDate } from "./utils";
+
+// ─── Demo Toast (local, lightweight feedback pattern — no backend) ────────────
+function useDemoToast() {
+  const [toast, setToast] = useState<string | null>(null);
+  useEffect(() => {
+    if (!toast) return;
+    const t = setTimeout(() => setToast(null), 3000);
+    return () => clearTimeout(t);
+  }, [toast]);
+  return { toast, showToast: setToast };
+}
+
+function DemoToast({ message, onDismiss }: { message: string; onDismiss: () => void }) {
+  return (
+    <div
+      style={{
+        position: "fixed", bottom: 20, left: "50%", transform: "translateX(-50%)",
+        background: "var(--surface)", color: "var(--text)", border: "1px solid var(--border)",
+        borderRadius: "var(--radius)", padding: "10px 16px", boxShadow: "0 8px 24px rgba(0,0,0,0.18)",
+        display: "flex", alignItems: "center", gap: 10, zIndex: 2000, fontSize: "var(--font-sm)",
+        maxWidth: 420,
+      }}
+    >
+      <i className="ti ti-circle-check" style={{ color: "var(--green)", fontSize: 16, flexShrink: 0 }} />
+      <span style={{ flex: 1 }}>{message}</span>
+      <button className="btn-icon" style={{ padding: 2 }} onClick={onDismiss}>
+        <i className="ti ti-x" style={{ fontSize: 12 }} />
+      </button>
+    </div>
+  );
+}
 
 // ─── Appointments ─────────────────────────────────────────────────────────────
 export function AppointmentsPage({ patients, onSelectPatient }: { patients: Patient[]; onSelectPatient?: (p: Patient) => void }) {
@@ -2522,25 +2553,18 @@ CURRENT SETTINGS:
 - Dark Mode: ${dark ? "Enabled" : "Disabled"}
 - Current Role: ${role}
 
-HIPAA COMPLIANCE FEATURES:
-- Audit Logging: Enabled
-- Access Controls: Enabled
-- Data Encryption: Enabled (AES-256 at rest, TLS 1.3 in transit)
-- Business Associate Agreements: Available
-- Patient Rights: Available
-- Breach Notification: Available
+PRODUCTION SECURITY CHECKLIST — DEMO PREVIEW:
+- Audit Logging: Demo enabled
+- Demo RBAC: Enabled
+- Encryption: Requires production backend
+- Compliance Review: Required before real clinic use
+- FHIR/HL7: Future integration ready
+- Clinical Support: Demo rules only
 
-CLINICAL STANDARDS:
-- ICD-10 Coding: Supported
-- CPT Coding: Supported
-- LOINC Coding: Supported
-- SNOMED CT: Supported
-
-SECURITY FEATURES:
-- Role-Based Access Control (RBAC): Active
-- Minimum Necessary Principle: Enforced
-- Audit Trail: Complete
-- Data Persistence: Active (localStorage)
+DATA HANDLING:
+- Role-Based Access Control (Demo RBAC): Active
+- Audit Trail: Demo logging enabled
+- Data Persistence: Active (localStorage, demo only)
 
 END OF REPORT
       `;
@@ -2631,53 +2655,53 @@ END OF REPORT
         <SettingRow
           icon="ti-shield-lock"
           label="Security Note"
-          description="This is a frontend demo. In production, all data would be encrypted at rest (AES-256) and in transit (TLS 1.3), with full HIPAA audit logging."
+          description="This is a frontend demo. Encryption requires production backend. A compliance review is required before real clinic use."
         >
           <span className="badge" style={{ background: "var(--amber-bg)", color: "var(--amber)", border: "1px solid var(--amber-border)" }}>
             Demo Mode
           </span>
         </SettingRow>
 
-        {/* HIPAA Compliance Section */}
+        {/* Production Security Checklist */}
         <div className="card card-padded" style={{ marginTop: 16 }}>
           <div className="section-label" style={{ marginBottom: 12 }}>
             <i className="ti ti-shield-check" style={{ marginRight: 4 }} />
-            HIPAA Compliance Features
+            Production Security Checklist — Demo Preview
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             <div style={{ padding: 12, borderRadius: "var(--radius)", background: "var(--surface3)" }}>
               <div style={{ fontSize: "var(--font-sm)", fontWeight: 600, marginBottom: 4 }}>Audit Logging</div>
-              <div style={{ fontSize: "var(--font-xs)", color: "var(--muted)" }}>All patient access, modifications, and views are logged with timestamps and user attribution</div>
+              <div style={{ fontSize: "var(--font-xs)", color: "var(--muted)" }}>Patient access, modifications, and views are logged locally with timestamps for demo purposes</div>
               <span className="badge" style={{ background: "var(--green-bg)", color: "var(--green)", border: "1px solid var(--green-border)", marginTop: 8, display: "inline-block" }}>
-                <i className="ti ti-check" style={{ fontSize: 10 }} /> Enabled
+                <i className="ti ti-check" style={{ fontSize: 10 }} /> Audit Logging Demo Enabled
               </span>
             </div>
             <div style={{ padding: 12, borderRadius: "var(--radius)", background: "var(--surface3)" }}>
               <div style={{ fontSize: "var(--font-sm)", fontWeight: 600, marginBottom: 4 }}>Access Controls</div>
-              <div style={{ fontSize: "var(--font-xs)", color: "var(--muted)" }}>Role-based access control (RBAC) with minimum necessary principle enforcement</div>
+              <div style={{ fontSize: "var(--font-xs)", color: "var(--muted)" }}>Role-based access simulation showing how permissions would differ by role</div>
               <span className="badge" style={{ background: "var(--green-bg)", color: "var(--green)", border: "1px solid var(--green-border)", marginTop: 8, display: "inline-block" }}>
-                <i className="ti ti-check" style={{ fontSize: 10 }} /> Enabled
+                <i className="ti ti-check" style={{ fontSize: 10 }} /> Demo RBAC
               </span>
             </div>
             <div style={{ padding: 12, borderRadius: "var(--radius)", background: "var(--surface3)" }}>
               <div style={{ fontSize: "var(--font-sm)", fontWeight: 600, marginBottom: 4 }}>Data Encryption</div>
-              <div style={{ fontSize: "var(--font-xs)", color: "var(--muted)" }}>AES-256 encryption at rest, TLS 1.3 encryption in transit</div>
-              <span className="badge" style={{ background: "var(--green-bg)", color: "var(--green)", border: "1px solid var(--green-border)", marginTop: 8, display: "inline-block" }}>
-                <i className="ti ti-check" style={{ fontSize: 10 }} /> Production Ready
+              <div style={{ fontSize: "var(--font-xs)", color: "var(--muted)" }}>Encryption requires production backend; not implemented in this demo</div>
+              <span className="badge" style={{ background: "var(--amber-bg)", color: "var(--amber)", border: "1px solid var(--amber-border)", marginTop: 8, display: "inline-block" }}>
+                <i className="ti ti-alert-triangle" style={{ fontSize: 10 }} /> Encryption Requires Production Backend
               </span>
             </div>
             <div style={{ padding: 12, borderRadius: "var(--radius)", background: "var(--surface3)" }}>
-              <div style={{ fontSize: "var(--font-sm)", fontWeight: 600, marginBottom: 4 }}>Business Associate Agreements</div>
-              <div style={{ fontSize: "var(--font-xs)", color: "var(--muted)" }}>BAA templates available for all third-party service providers</div>
-              <span className="badge" style={{ background: "var(--blue-bg)", color: "var(--blue)", border: "1px solid var(--blue-border)", marginTop: 8, display: "inline-block" }}>
-                <i className="ti ti-file-text" style={{ fontSize: 10 }} /> Templates Available
+              <div style={{ fontSize: "var(--font-sm)", fontWeight: 600, marginBottom: 4 }}>Compliance Review</div>
+              <div style={{ fontSize: "var(--font-xs)", color: "var(--muted)" }}>A full compliance review is required before any real clinic use</div>
+              <span className="badge" style={{ background: "var(--amber-bg)", color: "var(--amber)", border: "1px solid var(--amber-border)", marginTop: 8, display: "inline-block" }}>
+                <i className="ti ti-alert-triangle" style={{ fontSize: 10 }} /> Compliance Review Required Before Real Clinic Use
               </span>
             </div>
             <div style={{ padding: 12, borderRadius: "var(--radius)", background: "var(--surface3)" }}>
               <div style={{ fontSize: "var(--font-sm)", fontWeight: 600, marginBottom: 4 }}>Patient Rights</div>
-              <div style={{ fontSize: "var(--font-xs)", color: "var(--muted)" }}>HIPAA patient rights: Access, amendment, accounting of disclosures, restrictions</div>
-              <span className="badge" style={{ background: "var(--green-bg)", color: "var(--green)", border: "1px solid var(--green-border)", marginTop: 8, display: "inline-block" }}>
-                <i className="ti ti-check" style={{ fontSize: 10 }} /> Supported
+              <div style={{ fontSize: "var(--font-xs)", color: "var(--muted)" }}>Demo illustration of patient rights workflows: access, amendment, disclosure log</div>
+              <span className="badge" style={{ background: "var(--blue-bg)", color: "var(--blue)", border: "1px solid var(--blue-border)", marginTop: 8, display: "inline-block" }}>
+                <i className="ti ti-file-text" style={{ fontSize: 10 }} /> Demo Preview
               </span>
             </div>
           </div>
@@ -2687,35 +2711,35 @@ END OF REPORT
         <div className="card card-padded" style={{ marginTop: 16 }}>
           <div className="section-label" style={{ marginBottom: 12 }}>
             <i className="ti ti-clipboard-heart" style={{ marginRight: 4 }} />
-            Clinical Standards
+            Clinical Standards — Demo Preview
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             <div style={{ padding: 12, borderRadius: "var(--radius)", background: "var(--surface3)" }}>
               <div style={{ fontSize: "var(--font-sm)", fontWeight: 600, marginBottom: 4 }}>ICD-10 Coding</div>
               <div style={{ fontSize: "var(--font-xs)", color: "var(--muted)" }}>International Classification of Diseases, 10th Revision for diagnosis coding</div>
-              <span className="badge" style={{ background: "var(--green-bg)", color: "var(--green)", border: "1px solid var(--green-border)", marginTop: 8, display: "inline-block" }}>
-                <i className="ti ti-check" style={{ fontSize: 10 }} /> Implemented
+              <span className="badge" style={{ background: "var(--blue-bg)", color: "var(--blue)", border: "1px solid var(--blue-border)", marginTop: 8, display: "inline-block" }}>
+                <i className="ti ti-code" style={{ fontSize: 10 }} /> Demo Reference Only
               </span>
             </div>
             <div style={{ padding: 12, borderRadius: "var(--radius)", background: "var(--surface3)" }}>
               <div style={{ fontSize: "var(--font-sm)", fontWeight: 600, marginBottom: 4 }}>CPT Coding</div>
               <div style={{ fontSize: "var(--font-xs)", color: "var(--muted)" }}>Current Procedural Terminology for medical procedure coding</div>
-              <span className="badge" style={{ background: "var(--green-bg)", color: "var(--green)", border: "1px solid var(--green-border)", marginTop: 8, display: "inline-block" }}>
-                <i className="ti ti-check" style={{ fontSize: 10 }} /> Implemented
+              <span className="badge" style={{ background: "var(--blue-bg)", color: "var(--blue)", border: "1px solid var(--blue-border)", marginTop: 8, display: "inline-block" }}>
+                <i className="ti ti-code" style={{ fontSize: 10 }} /> Demo Reference Only
               </span>
             </div>
             <div style={{ padding: 12, borderRadius: "var(--radius)", background: "var(--surface3)" }}>
-              <div style={{ fontSize: "var(--font-sm)", fontWeight: 600, marginBottom: 4 }}>HL7 FHIR</div>
+              <div style={{ fontSize: "var(--font-sm)", fontWeight: 600, marginBottom: 4 }}>HL7 / FHIR</div>
               <div style={{ fontSize: "var(--font-xs)", color: "var(--muted)" }}>Health Level 7 Fast Healthcare Interoperability Resources for data exchange</div>
               <span className="badge" style={{ background: "var(--blue-bg)", color: "var(--blue)", border: "1px solid var(--blue-border)", marginTop: 8, display: "inline-block" }}>
-                <i className="ti ti-code" style={{ fontSize: 10 }} /> Integration Ready
+                <i className="ti ti-code" style={{ fontSize: 10 }} /> FHIR/HL7 Future Integration Ready
               </span>
             </div>
             <div style={{ padding: 12, borderRadius: "var(--radius)", background: "var(--surface3)" }}>
               <div style={{ fontSize: "var(--font-sm)", fontWeight: 600, marginBottom: 4 }}>Clinical Decision Support</div>
-              <div style={{ fontSize: "var(--font-xs)", color: "var(--muted)" }}>Drug interaction checking, allergy alerts, clinical guidelines integration</div>
-              <span className="badge" style={{ background: "var(--green-bg)", color: "var(--green)", border: "1px solid var(--green-border)", marginTop: 8, display: "inline-block" }}>
-                <i className="ti ti-check" style={{ fontSize: 10 }} /> Implemented
+              <div style={{ fontSize: "var(--font-xs)", color: "var(--muted)" }}>Drug interaction checking, allergy alerts, and clinical guideline cues</div>
+              <span className="badge" style={{ background: "var(--amber-bg)", color: "var(--amber)", border: "1px solid var(--amber-border)", marginTop: 8, display: "inline-block" }}>
+                <i className="ti ti-alert-triangle" style={{ fontSize: 10 }} /> Clinical Support Uses Demo Rules Only
               </span>
             </div>
           </div>
@@ -2768,7 +2792,7 @@ function PermDot({ on }: { on: boolean }) {
 }
 
 function StatCard({ label, value, color, icon, bg }: {
-  label: string; value: number; color: string; icon: string; bg: string;
+  label: string; value: number | string; color: string; icon: string; bg: string;
 }) {
   return (
     <div className="stat-card" style={{ display: "flex", alignItems: "center", gap: 12 }}>

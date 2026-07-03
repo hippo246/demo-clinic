@@ -18,6 +18,7 @@ import {
   loadAuditMap,
   fmtDate,
   undoRedoManager,
+  exportPatients,
 } from "./utils";
 import TopBar, { type NavTab } from "./components/TopBar";
 import Sidebar from "./Sidebar";
@@ -85,7 +86,8 @@ function AppInner() {
     nurse: "Nurse Station",
     admin: "Admin",
   };
-  const CURRENT_USER = { name: ROLE_NAMES[userRole] || "Staff" };
+  const CURRENT_USER = { name: ROLE_NAMES[userRole] || "Staff", role: userRole };
+  const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
 
   // Load initial data
   useEffect(() => {
@@ -109,9 +111,10 @@ function AppInner() {
   useEffect(() => {
     try {
       savePatients(patients);
+      setLastSavedAt(new Date().toISOString());
     } catch (error) {
       console.error("Failed to save patients:", error);
-      toast("Failed to save patient data", "error");
+      toast("Failed to save patient data locally", "error");
     }
   }, [patients, toast]);
 
@@ -128,7 +131,12 @@ function AppInner() {
   useEffect(() => {
     if (selectedPatient) {
       const fresh = patients.find((p) => p.id === selectedPatient.id);
-      if (fresh && fresh !== selectedPatient) setSelectedPatient(fresh);
+      if (fresh && fresh !== selectedPatient) {
+        setSelectedPatient(fresh);
+      } else if (!fresh) {
+        // Patient no longer exists (deleted/undone) — close profile view
+        setSelectedPatient(null);
+      }
     }
   }, [patients]);
 
@@ -161,7 +169,6 @@ function AppInner() {
       // Ctrl+E / Cmd+E → export patients
       if ((e.ctrlKey || e.metaKey) && e.key === "e") {
         e.preventDefault();
-        const { exportPatients } = require("./utils");
         exportPatients(patients, "csv");
         toast("Patients exported to CSV", "success");
       }
@@ -231,8 +238,8 @@ function AppInner() {
   const handleUndo = useCallback(() => {
     const action = undoRedoManager.undo();
     if (action) {
-      let updatedPatients: Patient[];
-      
+      let updatedPatients: Patient[] = patients;
+
       if (action.type === "create") {
         // Undo create: remove the patient
         updatedPatients = patients.filter((p) => p.id !== action.patientId);
@@ -254,8 +261,8 @@ function AppInner() {
   const handleRedo = useCallback(() => {
     const action = undoRedoManager.redo();
     if (action) {
-      let updatedPatients: Patient[];
-      
+      let updatedPatients: Patient[] = patients;
+
       if (action.type === "create") {
         // Redo create: add the patient back
         updatedPatients = [...patients, action.patientData];
@@ -299,7 +306,7 @@ function AppInner() {
     });
     setAuditMap((prev) => addAuditEntry(prev, updated.id, entry));
     toast(`${updated.name} updated`, "success");
-  }, [toast]);
+  }, [toast, userRole]);
 
   const handleDeletePatient = useCallback((id: string) => {
     const p = patients.find((x) => x.id === id);
@@ -320,7 +327,7 @@ function AppInner() {
       setAuditMap((prev) => addAuditEntry(prev, id, entry));
       toast(`${p.name} deleted`, "error");
     }
-  }, [patients, toast]);
+  }, [patients, toast, userRole]);
 
   const handleSave = useCallback((data: Partial<Patient>) => {
     if (formMode === "create") {
@@ -379,7 +386,7 @@ function AppInner() {
       toast(`${updated.name} saved`, "success");
     }
     setFormMode(null);
-  }, [formMode, patients, selectedPatient, toast]);
+  }, [formMode, patients, selectedPatient, toast, userRole]);
 
   const handleImport = useCallback((rows: Partial<Patient>[]) => {
     const startIdx = patients.length;
@@ -411,7 +418,72 @@ function AppInner() {
     setAuditMap((prev) => addAuditEntry(prev, "system", entry));
     setImportOpen(false);
     toast(`${newPatients.length} patients imported`, "success");
-  }, [patients.length, toast]);
+  }, [patients.length, toast, userRole]);
+
+  // ── Demo data controls (local-only, no backend) ───────────────────────────────
+  const resetDemoData = useCallback(() => {
+    try {
+      const fresh = getInitialPatients();
+      setPatients(fresh);
+      setAuditMap({});
+      setSelectedPatient(null);
+      toast("Demo data reset to defaults", "success");
+    } catch (error) {
+      console.error("Failed to reset demo data:", error);
+      toast("Could not reset demo data", "error");
+    }
+  }, [toast]);
+
+  const loadSampleDemoData = useCallback(() => {
+    try {
+      const sample = getInitialPatients();
+      setPatients(sample);
+      setSelectedPatient(null);
+      const entry = createAuditEntry({ patientId: "system", message: `${CURRENT_USER.name} loaded sample clinic data`, type: "import", user: CURRENT_USER.name });
+      setAuditMap((prev) => addAuditEntry(prev, "system", entry));
+      toast("Sample clinic data loaded", "success");
+    } catch (error) {
+      console.error("Failed to load sample demo data:", error);
+      toast("Could not load sample data", "error");
+    }
+  }, [toast, userRole]);
+
+  const clearLocalDemoStorage = useCallback(() => {
+    try {
+      // Demo-only: clears this browser's local storage and reloads sample data.
+      // No backend or production persistence is affected.
+      window.localStorage.clear();
+      const fresh = getInitialPatients();
+      setPatients(fresh);
+      setAuditMap({});
+      setSelectedPatient(null);
+      toast("Local storage cleared — sample data reloaded", "success");
+    } catch (error) {
+      console.error("Failed to clear local storage:", error);
+      toast("Could not clear local storage", "error");
+    }
+  }, [toast]);
+
+  const exportDemoJson = useCallback(() => {
+    try {
+      const payload = {
+        patients,
+        auditMap,
+        generatedAt: new Date().toISOString(),
+      };
+      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `clinicos-demo-export-${new Date().toISOString().split("T")[0]}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast("Demo data exported as JSON", "success");
+    } catch (error) {
+      console.error("Failed to export demo data:", error);
+      toast("Could not export demo data", "error");
+    }
+  }, [patients, auditMap, toast]);
 
   // ── Render ───────────────────────────────────────────────────────────────────
   // Show loading screen while data is loading
@@ -541,7 +613,19 @@ function AppInner() {
         )}
         {activeTab === "settings" && (
           <div style={{ flex: 1, overflow: "auto", height: "100%" }}>
-            <SettingsPage dark={dark} setDark={setDark} role={userRole} setRole={setUserRole} />
+            {/* Extra demo-control props are forwarded via spread so this compiles
+                whether or not SettingsPage's prop type has been updated yet to
+                accept them (see SettingsPage prompt for wiring the UI). */}
+            <SettingsPage
+              dark={dark} setDark={setDark} role={userRole} setRole={setUserRole}
+              {...({
+                onResetDemoData: resetDemoData,
+                onLoadSampleData: loadSampleDemoData,
+                onClearLocalStorage: clearLocalDemoStorage,
+                onExportDemoJson: exportDemoJson,
+                lastSavedAt,
+              } as any)}
+            />
           </div>
         )}
           </div>
@@ -561,7 +645,7 @@ function AppInner() {
         {NAV_TABS.map(({ id, label, icon }) => (
           <button
             key={id}
-            onClick={() => setActiveTab(id)}
+            onClick={() => { setActiveTab(id); setSelectedPatient(null); }}
             style={{
               display: "flex", flexDirection: "column", alignItems: "center", gap: 4,
               padding: "8px 12px", borderRadius: "var(--radius)",
@@ -576,6 +660,17 @@ function AppInner() {
             <span style={{ fontSize: 10 }}>{label}</span>
           </button>
         ))}
+      </div>
+
+      {/* Demo Mode identity — small, non-intrusive. TopBar prompt may relocate this. */}
+      <div style={{
+        position: "fixed", top: 8, right: 12, zIndex: 1100,
+        fontSize: "var(--font-2xs)", color: "var(--muted)",
+        background: "var(--surface)", border: "1px solid var(--border)",
+        borderRadius: "var(--radius-full)", padding: "3px 10px",
+        opacity: 0.75, pointerEvents: "none",
+      }} className="desktop-only">
+        Demo Mode · Local sample data · Not connected to backend
       </div>
 
       {/* Modals */}

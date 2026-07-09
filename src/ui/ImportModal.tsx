@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import type { Patient } from "../types";
+import type { Patient } from "./types";
 
 interface ImportModalProps {
   onImport: (rows: Partial<Patient>[]) => void;

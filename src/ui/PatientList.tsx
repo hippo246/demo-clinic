@@ -4,7 +4,7 @@ import { DOCTORS, STATUSES, PAGE_SIZE } from "./constants";
 import { applySmartSearch, sortPatients, fmtDate, calcRiskScore, detectDuplicates, exportPatients } from "./utils";
 import { StatusBadge, InsuranceBadge, AlertChip, AvatarCircle, RiskBadge } from "./Badges";
 import { useToast } from "./Toast";
-import { SkeletonTable } from "./components/Skeleton";
+import { SkeletonTable } from "./Skeleton";
 
 const SMART_SUGGESTIONS = [
   { label: "Diabetic patients",         query: "diabetic" },

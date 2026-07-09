@@ -20,10 +20,10 @@ import {
   undoRedoManager,
   exportPatients,
 } from "./utils";
-import TopBar, { type NavTab } from "./components/TopBar";
+import TopBar, { type NavTab } from "./TopBar";
 import Sidebar from "./Sidebar";
 import StatsBar from "./StatsBar";
-import ImportModal from "./components/ImportModal";
+import ImportModal from "./ImportModal";
 
 // Global error handler for unhandled promise rejections
 if (typeof window !== "undefined") {
@@ -103,7 +103,7 @@ function AppInner() {
       setPatients(getInitialPatients());
       setAuditMap({});
       setIsLoaded(true);
-      toast("Failed to load saved data, using default data", "error");
+      toast("Failed to load saved data, using default data", { type: "error" });
     }
   }, [toast]);
 
@@ -114,7 +114,7 @@ function AppInner() {
       setLastSavedAt(new Date().toISOString());
     } catch (error) {
       console.error("Failed to save patients:", error);
-      toast("Failed to save patient data locally", "error");
+      toast("Failed to save patient data locally", { type: "error" });
     }
   }, [patients, toast]);
 
@@ -123,7 +123,7 @@ function AppInner() {
       saveAuditMap(auditMap);
     } catch (error) {
       console.error("Failed to save audit map:", error);
-      toast("Failed to save audit log", "error");
+      toast("Failed to save audit log", { type: "error" });
     }
   }, [auditMap, toast]);
 
@@ -170,7 +170,7 @@ function AppInner() {
       if ((e.ctrlKey || e.metaKey) && e.key === "e") {
         e.preventDefault();
         exportPatients(patients, "csv");
-        toast("Patients exported to CSV", "success");
+        toast("Patients exported to CSV", { type: "success" });
       }
       // Escape → close modals/go back
       if (e.key === "Escape") {
@@ -254,7 +254,7 @@ function AppInner() {
       }
       
       setPatients(updatedPatients);
-      toast(`Undid: ${action.description}`, "info");
+      toast(`Undid: ${action.description}`, { type: "info" });
     }
   }, [patients, toast]);
 
@@ -277,7 +277,7 @@ function AppInner() {
       }
       
       setPatients(updatedPatients);
-      toast(`Redid: ${action.description}`, "info");
+      toast(`Redid: ${action.description}`, { type: "info" });
     }
   }, [patients, toast]);
 
@@ -305,7 +305,7 @@ function AppInner() {
       user:      CURRENT_USER.name,
     });
     setAuditMap((prev) => addAuditEntry(prev, updated.id, entry));
-    toast(`${updated.name} updated`, "success");
+    toast(`${updated.name} updated`, { type: "success" });
   }, [toast, userRole]);
 
   const handleDeletePatient = useCallback((id: string) => {
@@ -325,7 +325,7 @@ function AppInner() {
     if (p) {
       const entry = createAuditEntry({ patientId: id, message: `${CURRENT_USER.name} deleted ${p.name}`, type: "deleted", user: CURRENT_USER.name });
       setAuditMap((prev) => addAuditEntry(prev, id, entry));
-      toast(`${p.name} deleted`, "error");
+      toast(`${p.name} deleted`, { type: "error" });
     }
   }, [patients, toast, userRole]);
 
@@ -366,7 +366,7 @@ function AppInner() {
       
       const entry = createAuditEntry({ patientId: newId, message: `${CURRENT_USER.name} registered ${newPatient.name}`, type: "created", user: CURRENT_USER.name });
       setAuditMap((prev) => addAuditEntry(prev, newId, entry));
-      toast(`${newPatient.name} registered`, "success");
+      toast(`${newPatient.name} registered`, { type: "success" });
     } else if (formMode === "edit" && selectedPatient) {
       const updated = { ...selectedPatient, ...data, updatedAt: new Date().toISOString() };
       
@@ -383,7 +383,7 @@ function AppInner() {
       setSelectedPatient(updated);
       const entry = createAuditEntry({ patientId: updated.id, message: `${CURRENT_USER.name} edited ${updated.name}`, type: "edited", user: CURRENT_USER.name });
       setAuditMap((prev) => addAuditEntry(prev, updated.id, entry));
-      toast(`${updated.name} saved`, "success");
+      toast(`${updated.name} saved`, { type: "success" });
     }
     setFormMode(null);
   }, [formMode, patients, selectedPatient, toast, userRole]);
@@ -417,7 +417,7 @@ function AppInner() {
     const entry = createAuditEntry({ patientId: "system", message: `${CURRENT_USER.name} imported ${newPatients.length} patients`, type: "import", user: CURRENT_USER.name });
     setAuditMap((prev) => addAuditEntry(prev, "system", entry));
     setImportOpen(false);
-    toast(`${newPatients.length} patients imported`, "success");
+    toast(`${newPatients.length} patients imported`, { type: "success" });
   }, [patients.length, toast, userRole]);
 
   // ── Demo data controls (local-only, no backend) ───────────────────────────────
@@ -427,10 +427,10 @@ function AppInner() {
       setPatients(fresh);
       setAuditMap({});
       setSelectedPatient(null);
-      toast("Demo data reset to defaults", "success");
+      toast("Demo data reset to defaults", { type: "success" });
     } catch (error) {
       console.error("Failed to reset demo data:", error);
-      toast("Could not reset demo data", "error");
+      toast("Could not reset demo data", { type: "error" });
     }
   }, [toast]);
 
@@ -441,10 +441,10 @@ function AppInner() {
       setSelectedPatient(null);
       const entry = createAuditEntry({ patientId: "system", message: `${CURRENT_USER.name} loaded sample clinic data`, type: "import", user: CURRENT_USER.name });
       setAuditMap((prev) => addAuditEntry(prev, "system", entry));
-      toast("Sample clinic data loaded", "success");
+      toast("Sample clinic data loaded", { type: "success" });
     } catch (error) {
       console.error("Failed to load sample demo data:", error);
-      toast("Could not load sample data", "error");
+      toast("Could not load sample data", { type: "error" });
     }
   }, [toast, userRole]);
 
@@ -457,10 +457,10 @@ function AppInner() {
       setPatients(fresh);
       setAuditMap({});
       setSelectedPatient(null);
-      toast("Local storage cleared — sample data reloaded", "success");
+      toast("Local storage cleared — sample data reloaded", { type: "success" });
     } catch (error) {
       console.error("Failed to clear local storage:", error);
-      toast("Could not clear local storage", "error");
+      toast("Could not clear local storage", { type: "error" });
     }
   }, [toast]);
 
@@ -478,10 +478,10 @@ function AppInner() {
       a.download = `clinicos-demo-export-${new Date().toISOString().split("T")[0]}.json`;
       a.click();
       URL.revokeObjectURL(url);
-      toast("Demo data exported as JSON", "success");
+      toast("Demo data exported as JSON", { type: "success" });
     } catch (error) {
       console.error("Failed to export demo data:", error);
-      toast("Could not export demo data", "error");
+      toast("Could not export demo data", { type: "error" });
     }
   }, [patients, auditMap, toast]);
 

@@ -6,7 +6,7 @@ import {
   GenderDistributionChart,
   InsuranceStatusChart,
   AgeDistributionChart,
-} from "./components/Charts";
+} from "./Charts";
 
 interface StatsBarProps {
   stats: {

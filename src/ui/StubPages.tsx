@@ -16,6 +16,8 @@ function useDemoToast() {
 function DemoToast({ message, onDismiss }: { message: string; onDismiss: () => void }) {
   return (
     <div
+      role="status"
+      aria-live="polite"
       style={{
         position: "fixed", bottom: 20, left: "50%", transform: "translateX(-50%)",
         background: "var(--surface)", color: "var(--text)", border: "1px solid var(--border)",
@@ -24,10 +26,10 @@ function DemoToast({ message, onDismiss }: { message: string; onDismiss: () => v
         maxWidth: 420,
       }}
     >
-      <i className="ti ti-circle-check" style={{ color: "var(--green)", fontSize: 16, flexShrink: 0 }} />
+      <i className="ti ti-circle-check" aria-hidden="true" style={{ color: "var(--green)", fontSize: 16, flexShrink: 0 }} />
       <span style={{ flex: 1 }}>{message}</span>
-      <button className="btn-icon" style={{ padding: 2 }} onClick={onDismiss}>
-        <i className="ti ti-x" style={{ fontSize: 12 }} />
+      <button className="btn-icon" style={{ padding: 2 }} onClick={onDismiss} aria-label="Dismiss notification">
+        <i className="ti ti-x" aria-hidden="true" style={{ fontSize: 12 }} />
       </button>
     </div>
   );
@@ -48,11 +50,26 @@ export function AppointmentsPage({ patients, onSelectPatient }: { patients: Pati
     { id: "wl-2", patientId: "P005", patientName: "Jane Smith", requestedDate: "2024-01-21", requestedTime: "14:00", reason: "Follow-up", priority: "Medium", addedDate: "2024-01-16", notes: "" },
   ]);
   const [cancelledIds, setCancelledIds] = useState<Set<string>>(new Set());
+  const [search, setSearch] = useState("");
+  const [overdueOpen, setOverdueOpen] = useState(true);
+  const [showApptPdfMenu, setShowApptPdfMenu] = useState(false);
+  const [showApptExcelMenu, setShowApptExcelMenu] = useState(false);
+  const [showApptImportMenu, setShowApptImportMenu] = useState(false);
+  const { toast: apptToast, showToast: showApptToast } = useDemoToast();
+  const apptImportRef = React.useRef<HTMLInputElement>(null);
 
   const upcoming = patients
     .filter((p) => p.nextAppointment)
     .filter((p) => filterDoctor === "All" || p.doctor === filterDoctor)
     .filter((p) => filterStatus === "All" || p.status === filterStatus)
+    .filter((p) => !search || p.name.toLowerCase().includes(search.toLowerCase()) || p.id.toLowerCase().includes(search.toLowerCase()))
+    .filter((p) => {
+      if (!dateRange.start && !dateRange.end) return true;
+      const appt = new Date(p.nextAppointment!);
+      if (dateRange.start && appt < new Date(dateRange.start)) return false;
+      if (dateRange.end && appt > new Date(dateRange.end + "T23:59:59")) return false;
+      return true;
+    })
     .sort((a, b) => new Date(a.nextAppointment!).getTime() - new Date(b.nextAppointment!).getTime())
     .slice(0, 50);
 
@@ -115,14 +132,147 @@ END OF REPORT
     a.click();
   }
 
+  function apptDownloadBlob(content: string, filename: string, mime: string) {
+    const blob = new Blob([content], { type: mime });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a"); a.href = url; a.download = filename; a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function exportApptPdf(type: "summary" | "full" | "clinical") {
+    const date = new Date().toISOString().split("T")[0];
+    let content = `APPOINTMENT REPORT — ${type.toUpperCase()}\nGenerated: ${new Date().toLocaleDateString()}\n${"=".repeat(42)}\n\n`;
+    if (type === "summary") {
+      content += `Upcoming: ${upcoming.length}\nToday: ${today.length}\nThis Week: ${thisWeek.length}\nOverdue Follow-Ups: ${overdue.length}\n`;
+    } else {
+      content += upcoming.map(p =>
+        `---\n${p.id} | ${p.name} | ${p.doctor} | ${p.nextAppointment}\nReason: ${p.followUpReason || "General Checkup"} | Status: ${p.status}\n`
+      ).join("\n");
+    }
+    apptDownloadBlob(content, `appointments-${type}-${date}.pdf`, "text/plain");
+    showApptToast(`PDF (${type}) downloaded`);
+  }
+
+  function exportApptExcel(type: "upcoming" | "overdue" | "waitlist") {
+    const date = new Date().toISOString().split("T")[0];
+    let csv = "";
+    if (type === "upcoming") {
+      csv = ["ID,Name,Doctor,Date,Time,Reason,Status"].concat(
+        upcoming.map(p => [p.id, p.name, p.doctor, p.nextAppointment, new Date(p.nextAppointment!).toLocaleTimeString("en-IN",{hour:"2-digit",minute:"2-digit"}), p.followUpReason||"General Checkup", p.status].join(","))
+      ).join("\n");
+    } else if (type === "overdue") {
+      csv = ["ID,Name,Doctor,Follow-Up Due,Reason,Phone"].concat(
+        overdue.map(p => [p.id, p.name, p.doctor, p.followUpDate||"", p.followUpReason||"Follow-up required", p.phone].join(","))
+      ).join("\n");
+    } else {
+      csv = ["ID,PatientName,RequestedDate,RequestedTime,Reason,Priority"].concat(
+        waitlist.map(w => [w.id, w.patientName, w.requestedDate, w.requestedTime, w.reason, w.priority].join(","))
+      ).join("\n");
+    }
+    apptDownloadBlob(csv, `appointments-${type}-${date}.csv`, "text/csv");
+    showApptToast(`Excel (${type}) downloaded`);
+  }
+
+  function downloadApptTemplate(type: "appointments" | "waitlist" | "followups") {
+    const headers: Record<string, string> = {
+      appointments: "PatientID,PatientName,Doctor,AppointmentDate,AppointmentTime,Reason,Status,Notes",
+      waitlist: "PatientID,PatientName,RequestedDate,RequestedTime,Reason,Priority,Notes",
+      followups: "PatientID,PatientName,Doctor,FollowUpDate,Reason,Phone,Priority",
+    };
+    apptDownloadBlob(headers[type] + "\n", `template-${type}.csv`, "text/csv");
+    showApptToast(`${type} template downloaded — fill it and import`);
+  }
+
+  function handleApptImport(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    showApptToast(`"${file.name}" received — import processing (demo)`);
+    e.target.value = "";
+  }
+
   return (
-    <div style={{ padding: 24, maxWidth: 1200 }}>
+    <div style={{ padding: 24, width: "100%" }}>
+      {apptToast && <DemoToast message={apptToast} onDismiss={() => {}} />}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
         <h2 style={{ fontSize: "var(--font-xl)", fontWeight: 800, margin: 0 }}>Appointments</h2>
-        <div style={{ display: "flex", gap: 8 }}>
-          <button className="btn btn-ghost" onClick={() => generateAppointmentReport(upcoming, "summary")}>
-            <i className="ti ti-file-text" style={{ fontSize: 14 }} /> Report
-          </button>
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <input ref={apptImportRef} type="file" accept=".csv,.xlsx" style={{ display: "none" }} onChange={handleApptImport} aria-label="Upload appointments CSV or Excel file" />
+
+          {/* PDF dropdown */}
+          <div style={{ position: "relative" }}>
+            <button
+              className="btn btn-ghost"
+              aria-haspopup="menu"
+              aria-expanded={showApptPdfMenu}
+              onClick={() => { setShowApptPdfMenu(m => !m); setShowApptExcelMenu(false); setShowApptImportMenu(false); }}
+            >
+              <i className="ti ti-file-type-pdf" aria-hidden="true" style={{ fontSize: 14 }} /> PDF
+              <i className="ti ti-chevron-down" aria-hidden="true" style={{ fontSize: 11, marginLeft: 4 }} />
+            </button>
+            {showApptPdfMenu && (
+              <div style={{ position: "absolute", right: 0, top: "calc(100% + 4px)", background: "var(--surface)", border: "1px solid var(--border)", borderRadius: "var(--radius)", boxShadow: "0 8px 24px rgba(0,0,0,0.14)", zIndex: 200, minWidth: 170, overflow: "hidden" }}>
+                {([["summary","Summary Report"],["full","Full List"],["clinical","Clinical Detail"]] as const).map(([v, label]) => (
+                  <button key={v} className="btn-icon" style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "9px 14px", fontSize: "var(--font-sm)", justifyContent: "flex-start", borderRadius: 0 }}
+                    onClick={() => { exportApptPdf(v); setShowApptPdfMenu(false); }}>
+                    <i className="ti ti-file-text" style={{ fontSize: 13 }} /> {label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Excel dropdown */}
+          <div style={{ position: "relative" }}>
+            <button
+              className="btn btn-ghost"
+              aria-haspopup="menu"
+              aria-expanded={showApptExcelMenu}
+              onClick={() => { setShowApptExcelMenu(m => !m); setShowApptPdfMenu(false); setShowApptImportMenu(false); }}
+            >
+              <i className="ti ti-table" aria-hidden="true" style={{ fontSize: 14 }} /> Excel
+              <i className="ti ti-chevron-down" aria-hidden="true" style={{ fontSize: 11, marginLeft: 4 }} />
+            </button>
+            {showApptExcelMenu && (
+              <div style={{ position: "absolute", right: 0, top: "calc(100% + 4px)", background: "var(--surface)", border: "1px solid var(--border)", borderRadius: "var(--radius)", boxShadow: "0 8px 24px rgba(0,0,0,0.14)", zIndex: 200, minWidth: 170, overflow: "hidden" }}>
+                {([["upcoming","Upcoming"],["overdue","Overdue Follow-Ups"],["waitlist","Waitlist"]] as const).map(([v, label]) => (
+                  <button key={v} className="btn-icon" style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "9px 14px", fontSize: "var(--font-sm)", justifyContent: "flex-start", borderRadius: 0 }}
+                    onClick={() => { exportApptExcel(v); setShowApptExcelMenu(false); }}>
+                    <i className="ti ti-table-export" style={{ fontSize: 13 }} /> {label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Import dropdown */}
+          <div style={{ position: "relative" }}>
+            <button
+              className="btn btn-ghost"
+              aria-haspopup="menu"
+              aria-expanded={showApptImportMenu}
+              onClick={() => { setShowApptImportMenu(m => !m); setShowApptPdfMenu(false); setShowApptExcelMenu(false); }}
+            >
+              <i className="ti ti-upload" aria-hidden="true" style={{ fontSize: 14 }} /> Import
+              <i className="ti ti-chevron-down" aria-hidden="true" style={{ fontSize: 11, marginLeft: 4 }} />
+            </button>
+            {showApptImportMenu && (
+              <div style={{ position: "absolute", right: 0, top: "calc(100% + 4px)", background: "var(--surface)", border: "1px solid var(--border)", borderRadius: "var(--radius)", boxShadow: "0 8px 24px rgba(0,0,0,0.14)", zIndex: 200, minWidth: 210, overflow: "hidden" }}>
+                <div style={{ padding: "8px 14px 6px", fontSize: "var(--font-2xs)", color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.06em", fontWeight: 700 }}>Download Template</div>
+                {([["appointments","Appointments Template"],["waitlist","Waitlist Template"],["followups","Follow-Ups Template"]] as const).map(([v, label]) => (
+                  <button key={v} className="btn-icon" style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "8px 14px", fontSize: "var(--font-sm)", justifyContent: "flex-start", borderRadius: 0 }}
+                    onClick={() => { downloadApptTemplate(v); setShowApptImportMenu(false); }}>
+                    <i className="ti ti-download" style={{ fontSize: 13 }} /> {label}
+                  </button>
+                ))}
+                <div style={{ borderTop: "1px solid var(--border)", padding: "8px 14px 6px", fontSize: "var(--font-2xs)", color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.06em", fontWeight: 700, marginTop: 2 }}>Upload File</div>
+                <button className="btn-icon" style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "8px 14px 10px", fontSize: "var(--font-sm)", justifyContent: "flex-start", borderRadius: 0 }}
+                  onClick={() => { apptImportRef.current?.click(); setShowApptImportMenu(false); }}>
+                  <i className="ti ti-file-upload" style={{ fontSize: 13 }} /> Choose CSV / Excel file
+                </button>
+              </div>
+            )}
+          </div>
+
           <button className="btn btn-ghost" onClick={() => setShowWaitlistModal(true)}>
             <i className="ti ti-list-details" style={{ fontSize: 14 }} /> Add to Waitlist
           </button>
@@ -156,24 +306,46 @@ END OF REPORT
         <div className="section-label" style={{ marginBottom: 12 }}>Clinical Workflow Status</div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16 }}>
           <div style={{ padding: 12, borderRadius: "var(--radius)", background: "var(--surface3)" }}>
-            <div style={{ fontSize: "var(--font-xs)", color: "var(--muted)", marginBottom: 4 }}>Pre-Visit Prep</div>
-            <div style={{ fontSize: 20, fontWeight: 700, color: "var(--green)" }}>92%</div>
-            <div style={{ fontSize: "var(--font-2xs)", color: "var(--muted)" }}>Complete</div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 6 }}>
+              <div style={{ fontSize: "var(--font-xs)", color: "var(--muted)" }}>Pre-Visit Prep</div>
+              <div style={{ fontSize: "var(--font-sm)", fontWeight: 700, color: "var(--green)" }}>92%</div>
+            </div>
+            <div style={{ height: 5, borderRadius: 99, background: "var(--border)", overflow: "hidden" }}>
+              <div style={{ height: "100%", width: "92%", borderRadius: 99, background: "var(--green)" }} />
+            </div>
+            <div style={{ fontSize: "var(--font-2xs)", color: "var(--muted)", marginTop: 4 }}>Complete</div>
           </div>
           <div style={{ padding: 12, borderRadius: "var(--radius)", background: "var(--surface3)" }}>
-            <div style={{ fontSize: "var(--font-xs)", color: "var(--muted)", marginBottom: 4 }}>Check-In Ready</div>
-            <div style={{ fontSize: 20, fontWeight: 700, color: "var(--accent)" }}>88%</div>
-            <div style={{ fontSize: "var(--font-2xs)", color: "var(--muted)" }}>Ready</div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 6 }}>
+              <div style={{ fontSize: "var(--font-xs)", color: "var(--muted)" }}>Check-In Ready</div>
+              <div style={{ fontSize: "var(--font-sm)", fontWeight: 700, color: "var(--accent)" }}>88%</div>
+            </div>
+            <div style={{ height: 5, borderRadius: 99, background: "var(--border)", overflow: "hidden" }}>
+              <div style={{ height: "100%", width: "88%", borderRadius: 99, background: "var(--accent)" }} />
+            </div>
+            <div style={{ fontSize: "var(--font-2xs)", color: "var(--muted)", marginTop: 4 }}>Ready</div>
           </div>
           <div style={{ padding: 12, borderRadius: "var(--radius)", background: "var(--surface3)" }}>
-            <div style={{ fontSize: "var(--font-xs)", color: "var(--muted)", marginBottom: 4 }}>Room Availability</div>
-            <div style={{ fontSize: 20, fontWeight: 700, color: "var(--blue)" }}>5/8</div>
-            <div style={{ fontSize: "var(--font-2xs)", color: "var(--muted)" }}>Available</div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 6 }}>
+              <div style={{ fontSize: "var(--font-xs)", color: "var(--muted)" }}>Room Availability</div>
+              <div style={{ fontSize: "var(--font-sm)", fontWeight: 700, color: "var(--blue)" }}>5/8</div>
+            </div>
+            <div style={{ height: 5, borderRadius: 99, background: "var(--border)", overflow: "hidden" }}>
+              <div style={{ height: "100%", width: `${(5/8)*100}%`, borderRadius: 99, background: "var(--blue)" }} />
+            </div>
+            <div style={{ fontSize: "var(--font-2xs)", color: "var(--muted)", marginTop: 4 }}>Available</div>
           </div>
           <div style={{ padding: 12, borderRadius: "var(--radius)", background: "var(--surface3)" }}>
-            <div style={{ fontSize: "var(--font-xs)", color: "var(--muted)", marginBottom: 4 }}>Lab Results</div>
-            <div style={{ fontSize: 20, fontWeight: 700, color: "var(--amber)" }}>12</div>
-            <div style={{ fontSize: "var(--font-2xs)", color: "var(--muted)" }}>Pending</div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 6 }}>
+              <div style={{ fontSize: "var(--font-xs)", color: "var(--muted)" }}>Lab Results</div>
+              <div style={{ fontSize: "var(--font-sm)", fontWeight: 700, color: "var(--amber)" }}>12</div>
+            </div>
+            <div style={{ display: "flex", gap: 2, marginTop: 2 }}>
+              {Array.from({ length: 12 }).map((_, i) => (
+                <div key={i} style={{ height: 5, flex: 1, borderRadius: 99, background: "var(--amber)" }} />
+              ))}
+            </div>
+            <div style={{ fontSize: "var(--font-2xs)", color: "var(--muted)", marginTop: 4 }}>Pending</div>
           </div>
         </div>
       </div>
@@ -181,6 +353,21 @@ END OF REPORT
       {/* Filters */}
       <div className="card card-padded" style={{ marginBottom: 24 }}>
         <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
+          <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
+            <i className="ti ti-search" style={{ position: "absolute", left: 8, fontSize: 13, color: "var(--muted)", pointerEvents: "none" }} />
+            <input
+              type="text"
+              placeholder="Search patients..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              style={{ fontSize: "var(--font-sm)", padding: "6px 10px 6px 28px", borderRadius: "var(--radius)", width: 180 }}
+            />
+            {search && (
+              <button className="btn-icon" style={{ position: "absolute", right: 4, padding: 2 }} onClick={() => setSearch("")}>
+                <i className="ti ti-x" style={{ fontSize: 11 }} />
+              </button>
+            )}
+          </div>
           <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
             <span style={{ fontSize: "var(--font-sm)", color: "var(--muted)" }}>View:</span>
             <button 
@@ -211,27 +398,37 @@ END OF REPORT
             <option value="Active">Active</option>
             <option value="New">New</option>
             <option value="Follow-Up Due">Follow-Up Due</option>
+            <option value="Under Treatment">Under Treatment</option>
+            <option value="Observation">Observation</option>
+            <option value="Inactive">Inactive</option>
+            <option value="VIP">VIP</option>
           </select>
           <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
             <input type="date" value={dateRange.start} onChange={(e) => setDateRange({ ...dateRange, start: e.target.value })} style={{ fontSize: "var(--font-sm)", padding: "6px 10px" }} />
             <span style={{ fontSize: "var(--font-sm)", color: "var(--muted)" }}>to</span>
             <input type="date" value={dateRange.end} onChange={(e) => setDateRange({ ...dateRange, end: e.target.value })} style={{ fontSize: "var(--font-sm)", padding: "6px 10px" }} />
           </div>
-          {(filterDoctor !== "All" || filterStatus !== "All" || dateRange.start || dateRange.end) && (
-            <button className="btn btn-ghost" style={{ fontSize: "var(--font-sm)", padding: "6px 12px" }} onClick={() => { setFilterDoctor("All"); setFilterStatus("All"); setDateRange({ start: "", end: "" }); }}>
+          {(filterDoctor !== "All" || filterStatus !== "All" || dateRange.start || dateRange.end || search) && (
+            <button className="btn btn-ghost" style={{ fontSize: "var(--font-sm)", padding: "6px 12px" }} onClick={() => { setFilterDoctor("All"); setFilterStatus("All"); setDateRange({ start: "", end: "" }); setSearch(""); }}>
               Clear Filters
             </button>
           )}
         </div>
       </div>
 
-      {overdue.length > 0 && (
+      {view === "list" && overdue.length > 0 && (
         <div style={{ marginBottom: 24 }}>
-          <div className="section-label" style={{ marginBottom: 10, color: "var(--amber)" }}>
-            <i className="ti ti-alert-circle" style={{ marginRight: 4 }} />
-            Follow-Up Overdue ({overdue.length})
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          <button
+            onClick={() => setOverdueOpen(o => !o)}
+            style={{ display: "flex", alignItems: "center", gap: 8, background: "none", border: "none", cursor: "pointer", padding: "0 0 10px 0", width: "100%" }}
+          >
+            <span className="section-label" style={{ margin: 0, color: "var(--amber)", display: "flex", alignItems: "center", gap: 6 }}>
+              <i className="ti ti-alert-circle" />
+              Follow-Up Overdue ({overdue.length})
+            </span>
+            <i className={`ti ti-chevron-${overdueOpen ? "up" : "down"}`} style={{ fontSize: 13, color: "var(--amber)", marginLeft: "auto" }} />
+          </button>
+          {overdueOpen && <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {overdue.slice(0, 10).map((p) => (
               <div key={p.id} className="card card-padded" style={{
                 display: "flex", alignItems: "center", gap: 12,
@@ -256,7 +453,7 @@ END OF REPORT
                 </div>
               </div>
             ))}
-          </div>
+          </div>}
         </div>
       )}
 
@@ -319,8 +516,8 @@ END OF REPORT
         </div>
       )}
 
-      {/* List/Calendar View */}
-      {view !== "waitlist" && (
+      {/* List View */}
+      {view === "list" && (
         <div>
           <div className="section-label" style={{ marginBottom: 10 }}>
             <i className="ti ti-calendar-check" style={{ marginRight: 4 }} />
@@ -342,10 +539,18 @@ END OF REPORT
               <tbody>
                 {upcoming.length === 0 ? (
                   <tr><td colSpan={6}><div className="empty-state"><i className="ti ti-calendar-off empty-state-icon" /><div className="empty-state-sub">No upcoming appointments</div></div></td></tr>
-                ) : upcoming.map((p) => (
-                  <tr key={p.id} className="tbl-row" onClick={() => onSelectPatient?.(p)}>
+                ) : upcoming.map((p) => {
+                  const isToday = new Date(p.nextAppointment!).toDateString() === new Date().toDateString();
+                  const isCancelled = cancelledIds.has(p.id);
+                  return (
+                  <tr key={p.id} className="tbl-row" onClick={() => onSelectPatient?.(p)} style={isToday && !isCancelled ? { background: "var(--accent-soft)" } : undefined}>
                     <td>
-                      <div style={{ fontWeight: 600, fontSize: "var(--font-sm)" }}>{p.name}</div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                        <div style={{ fontWeight: 600, fontSize: "var(--font-sm)" }}>{p.name}</div>
+                        {isToday && !isCancelled && (
+                          <span style={{ fontSize: "var(--font-2xs)", fontWeight: 700, color: "var(--accent)", background: "var(--accent-soft)", border: "1px solid var(--accent)", borderRadius: 4, padding: "1px 5px", lineHeight: 1.4 }}>Today</span>
+                        )}
+                      </div>
                       <div style={{ fontSize: "var(--font-xs)", color: "var(--muted)" }}>{p.id}</div>
                     </td>
                     <td style={{ fontSize: "var(--font-sm)", color: "var(--muted)" }}>{p.doctor}</td>
@@ -353,11 +558,15 @@ END OF REPORT
                       <div style={{ fontSize: "var(--font-sm)", fontWeight: 600 }}>{fmtDate(p.nextAppointment)}</div>
                       <div style={{ fontSize: "var(--font-xs)", color: "var(--muted)" }}>{new Date(p.nextAppointment!).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}</div>
                     </td>
-                  <td style={{ fontSize: "var(--font-sm)", color: "var(--muted)" }}>General Checkup</td>
+                  <td style={{ fontSize: "var(--font-sm)", color: "var(--muted)" }}>{p.followUpReason || "General Checkup"}</td>
                   <td>
-                    {cancelledIds.has(p.id) ? (
+                    {isCancelled ? (
                       <span className="badge" style={{ background: "var(--red-bg)", color: "var(--red)", border: "1px solid var(--red-border)" }}>
                         Cancelled
+                      </span>
+                    ) : isToday ? (
+                      <span className="badge" style={{ background: "var(--green-bg)", color: "var(--green)", border: "1px solid var(--green-border)" }}>
+                        Today
                       </span>
                     ) : (
                       <span className="badge" style={{ background: "var(--blue-bg)", color: "var(--blue)", border: "1px solid var(--blue-border)" }}>
@@ -367,22 +576,109 @@ END OF REPORT
                   </td>
                   <td>
                     <div style={{ display: "flex", gap: 4 }}>
-                      <button className="btn-icon" style={{ padding: 4 }} onClick={(e) => { e.stopPropagation(); setShowBooking(true); }} title="Reschedule">
-                        <i className="ti ti-calendar-clock" style={{ fontSize: 12 }} />
-                      </button>
-                      <button className="btn-icon" style={{ padding: 4 }} onClick={(e) => { e.stopPropagation(); setCancelledIds(prev => new Set(prev).add(p.id)); }} title="Cancel">
-                        <i className="ti ti-calendar-x" style={{ fontSize: 12, color: "var(--red)" }} />
-                      </button>
+                      {!isCancelled && (
+                        <button className="btn-icon" style={{ padding: 4 }} onClick={(e) => { e.stopPropagation(); setShowBooking(true); }} title="Reschedule">
+                          <i className="ti ti-calendar-clock" style={{ fontSize: 12 }} />
+                        </button>
+                      )}
+                      {isCancelled ? (
+                        <button className="btn-icon" style={{ padding: 4 }} onClick={(e) => { e.stopPropagation(); setCancelledIds(prev => { const n = new Set(prev); n.delete(p.id); return n; }); }} title="Restore appointment" aria-label={`Restore appointment for ${p.name}`}>
+                          <i className="ti ti-rotate-clockwise" aria-hidden="true" style={{ fontSize: 12, color: "var(--green)" }} />
+                        </button>
+                      ) : (
+                        <button className="btn-icon" style={{ padding: 4 }} onClick={(e) => { e.stopPropagation(); setCancelledIds(prev => new Set(prev).add(p.id)); }} title="Cancel" aria-label={`Cancel appointment for ${p.name}`}>
+                          <i className="ti ti-calendar-x" aria-hidden="true" style={{ fontSize: 12, color: "var(--red)" }} />
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>
-              ))}
+                  );
+                })}
             </tbody>
           </table>
           </div>
         </div>
       </div>
       )}
+
+      {/* Calendar View */}
+      {view === "calendar" && (() => {
+        const now = new Date();
+        const [calYear, calMonth] = [now.getFullYear(), now.getMonth()];
+        const firstDay = new Date(calYear, calMonth, 1).getDay();
+        const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
+        const monthName = now.toLocaleString("default", { month: "long", year: "numeric" });
+        // Build a map: "YYYY-MM-DD" -> Patient[]
+        const apptMap: Record<string, typeof upcoming> = {};
+        upcoming.forEach((p) => {
+          if (!p.nextAppointment) return;
+          const d = new Date(p.nextAppointment);
+          if (d.getFullYear() === calYear && d.getMonth() === calMonth) {
+            const key = d.toISOString().split("T")[0];
+            if (!apptMap[key]) apptMap[key] = [];
+            apptMap[key].push(p);
+          }
+        });
+        const cells: (number | null)[] = [...Array(firstDay).fill(null), ...Array.from({ length: daysInMonth }, (_, i) => i + 1)];
+        // pad to complete last row
+        while (cells.length % 7 !== 0) cells.push(null);
+        const todayNum = now.toDateString() === new Date().toDateString() ? now.getDate() : -1;
+        return (
+          <div>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+              <div className="section-label" style={{ margin: 0 }}>
+                <i className="ti ti-calendar" style={{ marginRight: 4 }} />
+                {monthName}
+              </div>
+            </div>
+            <div className="card" style={{ overflow: "hidden", padding: 0 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", borderBottom: "1px solid var(--border)" }}>
+                {["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].map((d) => (
+                  <div key={d} style={{ padding: "8px 4px", textAlign: "center", fontSize: "var(--font-xs)", fontWeight: 700, color: "var(--muted)", borderRight: "1px solid var(--border)" }}>{d}</div>
+                ))}
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)" }}>
+                {cells.map((day, idx) => {
+                  const isToday = day === todayNum;
+                  const key = day ? `${calYear}-${String(calMonth + 1).padStart(2,"0")}-${String(day).padStart(2,"0")}` : "";
+                  const dayAppts = day ? (apptMap[key] || []) : [];
+                  return (
+                    <div key={idx} style={{
+                      minHeight: 80, padding: "6px 6px 4px", borderRight: "1px solid var(--border)", borderBottom: "1px solid var(--border)",
+                      background: !day ? "var(--surface2)" : isToday ? "var(--accent-soft)" : "var(--surface)",
+                      verticalAlign: "top",
+                    }}>
+                      {day && (
+                        <>
+                          <div style={{ fontSize: "var(--font-xs)", fontWeight: isToday ? 800 : 500, color: isToday ? "var(--accent)" : "var(--text)", marginBottom: 4 }}>{day}</div>
+                          {dayAppts.slice(0, 3).map((p) => (
+                            <button
+                              key={p.id}
+                              type="button"
+                              onClick={() => onSelectPatient?.(p)}
+                              aria-label={`View appointment for ${p.name}`}
+                              style={{
+                                display: "block", width: "100%", textAlign: "left", border: "none",
+                                font: "inherit", fontSize: "var(--font-2xs)", fontWeight: 600, color: "var(--accent)",
+                                background: "var(--accent-soft)", borderRadius: 3, padding: "1px 4px", marginBottom: 2,
+                                cursor: "pointer", overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis",
+                              }}
+                            >{p.name}</button>
+                          ))}
+                          {dayAppts.length > 3 && (
+                            <div style={{ fontSize: "var(--font-2xs)", color: "var(--muted)", padding: "1px 4px" }}>+{dayAppts.length - 3} more</div>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Booking Modal */}
       {showBooking && (
@@ -444,7 +740,7 @@ function AppointmentBookingModal({
       <div className="modal" style={{ width: "100%", maxWidth: 520 }}>
         <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div style={{ fontSize: "var(--font-md)", fontWeight: 700 }}>Book New Appointment</div>
-          <button className="btn-icon" onClick={onClose}><i className="ti ti-x" style={{ fontSize: 14 }} /></button>
+          <button className="btn-icon" onClick={onClose} aria-label="Close dialog"><i className="ti ti-x" aria-hidden="true" style={{ fontSize: 14 }} /></button>
         </div>
         <div style={{ padding: 20 }}>
           <div className="field-group" style={{ marginBottom: 12 }}>
@@ -456,7 +752,7 @@ function AppointmentBookingModal({
               ))}
             </select>
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }} className="desktop-only">
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 10, marginBottom: 12 }}>
             <div className="field-group">
               <label className="field-label">Date *</label>
               <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={{ width: "100%" }} min={new Date().toISOString().split("T")[0]} />
@@ -471,49 +767,7 @@ function AppointmentBookingModal({
               </select>
             </div>
           </div>
-
-          {/* Mobile version - single column */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 10, marginBottom: 12 }} className="mobile-only">
-            <div className="field-group">
-              <label className="field-label">Date *</label>
-              <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={{ width: "100%" }} min={new Date().toISOString().split("T")[0]} />
-            </div>
-            <div className="field-group">
-              <label className="field-label">Time *</label>
-              <select value={time} onChange={(e) => setTime(e.target.value)} style={{ width: "100%" }}>
-                <option value="">Select time...</option>
-                {availableSlots.map((slot) => (
-                  <option key={slot} value={slot}>{slot}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }} className="desktop-only">
-            <div className="field-group">
-              <label className="field-label">Appointment Type</label>
-              <select value={type} onChange={(e) => setType(e.target.value)} style={{ width: "100%" }}>
-                <option>General Checkup</option>
-                <option>Follow-up Visit</option>
-                <option>Consultation</option>
-                <option>Emergency Visit</option>
-                <option>Lab Test Review</option>
-                <option>Vaccination</option>
-              </select>
-            </div>
-            <div className="field-group">
-              <label className="field-label">Doctor</label>
-              <select value={doctor} onChange={(e) => setDoctor(e.target.value)} style={{ width: "100%" }}>
-                <option>Dr. Sharma</option>
-                <option>Dr. Patel</option>
-                <option>Dr. Mehta</option>
-                <option>Dr. Iyer</option>
-                <option>Dr. Nair</option>
-              </select>
-            </div>
-          </div>
-
-          {/* Mobile version - single column */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 10, marginBottom: 12 }} className="mobile-only">
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 10, marginBottom: 12 }}>
             <div className="field-group">
               <label className="field-label">Appointment Type</label>
               <select value={type} onChange={(e) => setType(e.target.value)} style={{ width: "100%" }}>
@@ -591,7 +845,7 @@ function WaitlistModal({
       <div className="modal" style={{ width: "100%", maxWidth: 480 }}>
         <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div style={{ fontSize: "var(--font-md)", fontWeight: 700 }}>Add to Waitlist</div>
-          <button className="btn-icon" onClick={onClose}><i className="ti ti-x" style={{ fontSize: 14 }} /></button>
+          <button className="btn-icon" onClick={onClose} aria-label="Close dialog"><i className="ti ti-x" aria-hidden="true" style={{ fontSize: 14 }} /></button>
         </div>
         <div style={{ padding: 20 }}>
           <div className="field-group" style={{ marginBottom: 12 }}>
@@ -735,7 +989,7 @@ END OF REPORT
   }
 
   return (
-    <div style={{ padding: 24, maxWidth: 1200 }}>
+    <div style={{ padding: 24, width: "100%" }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
         <h2 style={{ fontSize: "var(--font-xl)", fontWeight: 800, margin: 0 }}>Billing & Insurance</h2>
         <div style={{ display: "flex", gap: 8 }}>
@@ -912,11 +1166,11 @@ END OF REPORT
                     </td>
                     <td>
                       <div style={{ display: "flex", gap: 4 }}>
-                        <button className="btn-icon" style={{ padding: 4 }} title="View Details">
-                          <i className="ti ti-eye" style={{ fontSize: 12 }} />
+                        <button className="btn-icon" style={{ padding: 4 }} title="View Details" aria-label="View details">
+                          <i className="ti ti-eye" aria-hidden="true" style={{ fontSize: 12 }} />
                         </button>
-                        <button className="btn-icon" style={{ padding: 4 }} onClick={() => setInsuranceClaims(insuranceClaims.filter((c) => c.id !== claim.id))} title="Delete">
-                          <i className="ti ti-trash" style={{ fontSize: 12, color: "var(--red)" }} />
+                        <button className="btn-icon" style={{ padding: 4 }} onClick={() => setInsuranceClaims(insuranceClaims.filter((c) => c.id !== claim.id))} title="Delete" aria-label={`Delete claim ${claim.claimNumber}`}>
+                          <i className="ti ti-trash" aria-hidden="true" style={{ fontSize: 12, color: "var(--red)" }} />
                         </button>
                       </div>
                     </td>
@@ -960,11 +1214,11 @@ END OF REPORT
                     <td style={{ fontSize: "var(--font-sm)", fontWeight: 600 }}>{preAuth.approvedAmount ? `₹${preAuth.approvedAmount.toLocaleString()}` : "—"}</td>
                     <td>
                       <div style={{ display: "flex", gap: 4 }}>
-                        <button className="btn-icon" style={{ padding: 4 }} title="View Details">
-                          <i className="ti ti-eye" style={{ fontSize: 12 }} />
+                        <button className="btn-icon" style={{ padding: 4 }} title="View Details" aria-label="View details">
+                          <i className="ti ti-eye" aria-hidden="true" style={{ fontSize: 12 }} />
                         </button>
-                        <button className="btn-icon" style={{ padding: 4 }} onClick={() => setPreAuthorizations(preAuthorizations.filter((p) => p.id !== preAuth.id))} title="Delete">
-                          <i className="ti ti-trash" style={{ fontSize: 12, color: "var(--red)" }} />
+                        <button className="btn-icon" style={{ padding: 4 }} onClick={() => setPreAuthorizations(preAuthorizations.filter((p) => p.id !== preAuth.id))} title="Delete" aria-label={`Delete pre-authorization for ${preAuth.patientName}`}>
+                          <i className="ti ti-trash" aria-hidden="true" style={{ fontSize: 12, color: "var(--red)" }} />
                         </button>
                       </div>
                     </td>
@@ -1050,11 +1304,11 @@ END OF REPORT
                     </td>
                     <td>
                       <div style={{ display: "flex", gap: 4 }}>
-                        <button className="btn-icon" style={{ padding: 4 }} title="View Details">
-                          <i className="ti ti-eye" style={{ fontSize: 12 }} />
+                        <button className="btn-icon" style={{ padding: 4 }} title="View Details" aria-label="View details">
+                          <i className="ti ti-eye" aria-hidden="true" style={{ fontSize: 12 }} />
                         </button>
-                        <button className="btn-icon" style={{ padding: 4 }} onClick={() => setPaymentPlans(paymentPlans.filter((p) => p.id !== plan.id))} title="Delete">
-                          <i className="ti ti-trash" style={{ fontSize: 12, color: "var(--red)" }} />
+                        <button className="btn-icon" style={{ padding: 4 }} onClick={() => setPaymentPlans(paymentPlans.filter((p) => p.id !== plan.id))} title="Delete" aria-label={`Delete payment plan for ${plan.patientName}`}>
+                          <i className="ti ti-trash" aria-hidden="true" style={{ fontSize: 12, color: "var(--red)" }} />
                         </button>
                       </div>
                     </td>
@@ -1282,7 +1536,7 @@ function InvoiceModal({
       <div className="modal" style={{ width: "100%", maxWidth: 560 }}>
         <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div style={{ fontSize: "var(--font-md)", fontWeight: 700 }}>Create Invoice</div>
-          <button className="btn-icon" onClick={onClose}><i className="ti ti-x" style={{ fontSize: 14 }} /></button>
+          <button className="btn-icon" onClick={onClose} aria-label="Close dialog"><i className="ti ti-x" aria-hidden="true" style={{ fontSize: 14 }} /></button>
         </div>
         <div style={{ padding: 20 }}>
           <div className="field-group" style={{ marginBottom: 12 }}>
@@ -1313,8 +1567,8 @@ function InvoiceModal({
                   style={{ flex: 1, fontSize: "var(--font-sm)" }} 
                 />
                 {items.length > 1 && (
-                  <button className="btn-icon" onClick={() => removeItem(index)} style={{ padding: 4 }}>
-                    <i className="ti ti-trash" style={{ fontSize: 12, color: "var(--red)" }} />
+                  <button className="btn-icon" onClick={() => removeItem(index)} style={{ padding: 4 }} aria-label={`Remove item ${index + 1}`}>
+                    <i className="ti ti-trash" aria-hidden="true" style={{ fontSize: 12, color: "var(--red)" }} />
                   </button>
                 )}
               </div>
@@ -1375,7 +1629,7 @@ function PaymentModal({
       <div className="modal" style={{ width: "100%", maxWidth: 440 }}>
         <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div style={{ fontSize: "var(--font-md)", fontWeight: 700 }}>Record Payment</div>
-          <button className="btn-icon" onClick={onClose}><i className="ti ti-x" style={{ fontSize: 14 }} /></button>
+          <button className="btn-icon" onClick={onClose} aria-label="Close dialog"><i className="ti ti-x" aria-hidden="true" style={{ fontSize: 14 }} /></button>
         </div>
         <div style={{ padding: 20 }}>
           <div className="field-group" style={{ marginBottom: 12 }}>
@@ -1469,7 +1723,7 @@ function InsuranceClaimModal({
       <div className="modal" style={{ width: "100%", maxWidth: 480 }}>
         <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div style={{ fontSize: "var(--font-md)", fontWeight: 700 }}>New Insurance Claim</div>
-          <button className="btn-icon" onClick={onClose}><i className="ti ti-x" style={{ fontSize: 14 }} /></button>
+          <button className="btn-icon" onClick={onClose} aria-label="Close dialog"><i className="ti ti-x" aria-hidden="true" style={{ fontSize: 14 }} /></button>
         </div>
         <div style={{ padding: 20 }}>
           <div className="field-group" style={{ marginBottom: 12 }}>
@@ -1551,7 +1805,7 @@ function PreAuthorizationModal({
       <div className="modal" style={{ width: "100%", maxWidth: 480 }}>
         <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div style={{ fontSize: "var(--font-md)", fontWeight: 700 }}>New Pre-Authorization</div>
-          <button className="btn-icon" onClick={onClose}><i className="ti ti-x" style={{ fontSize: 14 }} /></button>
+          <button className="btn-icon" onClick={onClose} aria-label="Close dialog"><i className="ti ti-x" aria-hidden="true" style={{ fontSize: 14 }} /></button>
         </div>
         <div style={{ padding: 20 }}>
           <div className="field-group" style={{ marginBottom: 12 }}>
@@ -1637,7 +1891,7 @@ function PaymentPlanModal({
       <div className="modal" style={{ width: "100%", maxWidth: 480 }}>
         <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div style={{ fontSize: "var(--font-md)", fontWeight: 700 }}>Create Payment Plan</div>
-          <button className="btn-icon" onClick={onClose}><i className="ti ti-x" style={{ fontSize: 14 }} /></button>
+          <button className="btn-icon" onClick={onClose} aria-label="Close dialog"><i className="ti ti-x" aria-hidden="true" style={{ fontSize: 14 }} /></button>
         </div>
         <div style={{ padding: 20 }}>
           <div className="field-group" style={{ marginBottom: 12 }}>
@@ -1887,7 +2141,7 @@ export function PatientPortalPage({ patients, onSelectPatient }: { patients: Pat
               <div className="modal" style={{ width: "100%", maxWidth: 560 }}>
                 <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                   <div style={{ fontSize: "var(--font-md)", fontWeight: 700 }}>Book Appointment</div>
-                  <button className="btn-icon" onClick={() => setShowBookingModal(false)}><i className="ti ti-x" style={{ fontSize: 14 }} /></button>
+                  <button className="btn-icon" onClick={() => setShowBookingModal(false)} aria-label="Close dialog"><i className="ti ti-x" aria-hidden="true" style={{ fontSize: 14 }} /></button>
                 </div>
                 <div style={{ padding: 20 }}>
                   <div className="field-group" style={{ marginBottom: 12 }}>
@@ -1984,6 +2238,11 @@ export function ReportsPage({ patients, onSelectPatient }: { patients: Patient[]
   const [filterDoctor, setFilterDoctor] = useState("All");
   const [filterStatus, setFilterStatus] = useState("All");
   const [exportFormat, setExportFormat] = useState<"csv" | "json" | "pdf" | "hl7">("csv");
+  const [showPdfMenu, setShowPdfMenu] = useState(false);
+  const [showExcelMenu, setShowExcelMenu] = useState(false);
+  const [showImportMenu, setShowImportMenu] = useState(false);
+  const { toast: rptToast, showToast: showRptToast } = useDemoToast();
+  const importFileRef = React.useRef<HTMLInputElement>(null);
 
   const filteredPatients = patients.filter((p) => {
     const doctorMatch = filterDoctor === "All" || p.doctor === filterDoctor;
@@ -2116,20 +2375,133 @@ END OF REPORT
     }
   }
 
+  function downloadBlob(content: string, filename: string, mime: string) {
+    const blob = new Blob([content], { type: mime });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = filename; a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function exportPdf(type: "summary" | "full" | "clinical") {
+    const date = new Date().toISOString().split("T")[0];
+    let content = `CLINICAL REPORT — ${type.toUpperCase()}\nGenerated: ${new Date().toLocaleDateString()}\n${"=".repeat(42)}\n\n`;
+    if (type === "summary") {
+      content += `Total Patients: ${filteredPatients.length}\nActive: ${stats.active}\nCritical Alerts: ${stats.criticalAlerts}\nFollow-Up Due: ${stats.followUpDue}\n`;
+    } else {
+      content += filteredPatients.map(p =>
+        `---\n${p.id} | ${p.name} | ${p.status} | ${p.doctor} | Age: ${p.age}\nAlerts: ${(p.alerts||[]).join(", ")||"None"} | Conditions: ${(p.conditions||[]).join(", ")||"None"}\n`
+      ).join("\n");
+    }
+    downloadBlob(content, `report-${type}-${date}.pdf`, "text/plain");
+    showRptToast(`PDF (${type}) downloaded`);
+  }
+
+  function exportExcel(type: "patients" | "appointments" | "billing") {
+    const date = new Date().toISOString().split("T")[0];
+    let csv = "";
+    if (type === "patients") {
+      csv = ["ID,Name,Status,Doctor,Age,Phone,Insurance,Last Visit,Alerts"].concat(
+        filteredPatients.map(p => [p.id,p.name,p.status,p.doctor,p.age,p.phone,p.insuranceStatus,p.lastVisit||"",(p.alerts||[]).join("|")].join(","))
+      ).join("\n");
+    } else if (type === "appointments") {
+      csv = ["ID,Name,Doctor,Next Appointment,Follow-Up Reason,Status"].concat(
+        filteredPatients.filter(p=>p.nextAppointment).map(p => [p.id,p.name,p.doctor,p.nextAppointment,p.followUpReason||"",p.status].join(","))
+      ).join("\n");
+    } else {
+      csv = ["ID,Name,Insurance Status,Insurance Provider,Outstanding Balance"].concat(
+        filteredPatients.map(p => [p.id,p.name,p.insuranceStatus,p.insuranceProvider||"",(p.outstandingBalance||0)].join(","))
+      ).join("\n");
+    }
+    downloadBlob(csv, `report-${type}-${date}.csv`, "text/csv");
+    showRptToast(`Excel (${type}) downloaded`);
+  }
+
+  function downloadTemplate(type: "patients" | "appointments" | "billing") {
+    const headers: Record<string, string> = {
+      patients: "ID,Name,DOB,Gender,Phone,Email,Address,Doctor,Status,InsuranceProvider,InsuranceStatus,BloodGroup,Alerts,Conditions",
+      appointments: "PatientID,PatientName,Doctor,AppointmentDate,AppointmentTime,Reason,Status,Notes",
+      billing: "PatientID,PatientName,InvoiceDate,DueDate,ServiceDescription,Amount,InsuranceStatus,Paid",
+    };
+    downloadBlob(headers[type] + "\n", `import-template-${type}.csv`, "text/csv");
+    showRptToast(`${type} template downloaded — fill it and import`);
+  }
+
+  function handleImportFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    showRptToast(`"${file.name}" received — import processing (demo)`);
+    e.target.value = "";
+  }
+
   return (
-    <div style={{ padding: 24, maxWidth: 1200 }}>
+    <div style={{ padding: 24, width: "100%" }}>
+      {rptToast && <DemoToast message={rptToast} onDismiss={() => {}} />}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
         <h2 style={{ fontSize: "var(--font-xl)", fontWeight: 800, margin: 0 }}>Reports & Analytics</h2>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <select value={exportFormat} onChange={(e) => setExportFormat(e.target.value as any)} style={{ fontSize: "var(--font-sm)", padding: "6px 10px", borderRadius: "var(--radius)" }}>
-            <option value="csv">CSV</option>
-            <option value="json">JSON</option>
-            <option value="pdf">PDF Report</option>
-            <option value="hl7">HL7 FHIR</option>
-          </select>
-          <button className="btn btn-primary" onClick={handleExport}>
-            <i className="ti ti-download" style={{ fontSize: 14 }} /> Export Report
-          </button>
+
+          {/* PDF dropdown */}
+          <div style={{ position: "relative" }}>
+            <button className="btn btn-ghost" onClick={() => { setShowPdfMenu(m => !m); setShowExcelMenu(false); setShowImportMenu(false); }}>
+              <i className="ti ti-file-type-pdf" style={{ fontSize: 14 }} /> PDF
+              <i className="ti ti-chevron-down" style={{ fontSize: 11, marginLeft: 4 }} />
+            </button>
+            {showPdfMenu && (
+              <div style={{ position: "absolute", right: 0, top: "calc(100% + 4px)", background: "var(--surface)", border: "1px solid var(--border)", borderRadius: "var(--radius)", boxShadow: "0 8px 24px rgba(0,0,0,0.14)", zIndex: 200, minWidth: 170, overflow: "hidden" }}>
+                {([["summary","Summary Report"],["full","Full Patient List"],["clinical","Clinical Detail"]] as const).map(([v, label]) => (
+                  <button key={v} className="btn-icon" style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "9px 14px", fontSize: "var(--font-sm)", justifyContent: "flex-start", borderRadius: 0 }}
+                    onClick={() => { exportPdf(v); setShowPdfMenu(false); }}>
+                    <i className="ti ti-file-text" style={{ fontSize: 13 }} /> {label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Excel dropdown */}
+          <div style={{ position: "relative" }}>
+            <button className="btn btn-ghost" onClick={() => { setShowExcelMenu(m => !m); setShowPdfMenu(false); setShowImportMenu(false); }}>
+              <i className="ti ti-table" style={{ fontSize: 14 }} /> Excel
+              <i className="ti ti-chevron-down" style={{ fontSize: 11, marginLeft: 4 }} />
+            </button>
+            {showExcelMenu && (
+              <div style={{ position: "absolute", right: 0, top: "calc(100% + 4px)", background: "var(--surface)", border: "1px solid var(--border)", borderRadius: "var(--radius)", boxShadow: "0 8px 24px rgba(0,0,0,0.14)", zIndex: 200, minWidth: 170, overflow: "hidden" }}>
+                {([["patients","Patients"],["appointments","Appointments"],["billing","Billing"]] as const).map(([v, label]) => (
+                  <button key={v} className="btn-icon" style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "9px 14px", fontSize: "var(--font-sm)", justifyContent: "flex-start", borderRadius: 0 }}
+                    onClick={() => { exportExcel(v); setShowExcelMenu(false); }}>
+                    <i className="ti ti-table-export" style={{ fontSize: 13 }} /> {label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Import dropdown */}
+          <input ref={importFileRef} type="file" accept=".csv,.xlsx" style={{ display: "none" }} onChange={handleImportFile} />
+          <div style={{ position: "relative" }}>
+            <button className="btn btn-primary" onClick={() => { setShowImportMenu(m => !m); setShowPdfMenu(false); setShowExcelMenu(false); }}>
+              <i className="ti ti-upload" style={{ fontSize: 14 }} /> Import
+              <i className="ti ti-chevron-down" style={{ fontSize: 11, marginLeft: 4 }} />
+            </button>
+            {showImportMenu && (
+              <div style={{ position: "absolute", right: 0, top: "calc(100% + 4px)", background: "var(--surface)", border: "1px solid var(--border)", borderRadius: "var(--radius)", boxShadow: "0 8px 24px rgba(0,0,0,0.14)", zIndex: 200, minWidth: 200, overflow: "hidden" }}>
+                <div style={{ padding: "8px 14px 6px", fontSize: "var(--font-2xs)", color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.06em", fontWeight: 700 }}>Download Template</div>
+                {([["patients","Patient Template"],["appointments","Appointments Template"],["billing","Billing Template"]] as const).map(([v, label]) => (
+                  <button key={v} className="btn-icon" style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "8px 14px", fontSize: "var(--font-sm)", justifyContent: "flex-start", borderRadius: 0 }}
+                    onClick={() => { downloadTemplate(v); setShowImportMenu(false); }}>
+                    <i className="ti ti-download" style={{ fontSize: 13 }} /> {label}
+                  </button>
+                ))}
+                <div style={{ borderTop: "1px solid var(--border)", padding: "8px 14px 6px", fontSize: "var(--font-2xs)", color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.06em", fontWeight: 700, marginTop: 2 }}>Upload File</div>
+                <button className="btn-icon" style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "8px 14px 10px", fontSize: "var(--font-sm)", justifyContent: "flex-start", borderRadius: 0 }}
+                  onClick={() => { importFileRef.current?.click(); setShowImportMenu(false); }}>
+                  <i className="ti ti-file-upload" style={{ fontSize: 13 }} /> Choose CSV / Excel file
+                </button>
+              </div>
+            )}
+          </div>
+
         </div>
       </div>
 
@@ -2539,51 +2911,111 @@ export function SettingsPage({
   role: string;
   setRole: (r: any) => void;
 }) {
-  function generateSettingsReport(reportType: string) {
-    const reportDate = new Date().toLocaleDateString();
-    let reportContent = "";
-
-    if (reportType === "summary") {
-      reportContent = `
-SYSTEM SETTINGS REPORT
-Generated: ${reportDate}
-==========================================
-
-CURRENT SETTINGS:
-- Dark Mode: ${dark ? "Enabled" : "Disabled"}
-- Current Role: ${role}
-
-PRODUCTION SECURITY CHECKLIST — DEMO PREVIEW:
-- Audit Logging: Demo enabled
-- Demo RBAC: Enabled
-- Encryption: Requires production backend
-- Compliance Review: Required before real clinic use
-- FHIR/HL7: Future integration ready
-- Clinical Support: Demo rules only
-
-DATA HANDLING:
-- Role-Based Access Control (Demo RBAC): Active
-- Audit Trail: Demo logging enabled
-- Data Persistence: Active (localStorage, demo only)
-
-END OF REPORT
-      `;
-    }
-
-    const blob = new Blob([reportContent], { type: "text/plain" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `settings-report-${reportType}-${new Date().toISOString().split("T")[0]}.txt`;
-    a.click();
-  }
+  const [showBuyerModal, setShowBuyerModal] = useState(false);
 
   return (
-    <div style={{ padding: 24, maxWidth: 700 }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
+    <div style={{ padding: "clamp(12px, 4vw, 24px)", width: "100%", boxSizing: "border-box" }}>
+      {showBuyerModal && (
+        <div
+          style={{
+            position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 1000,
+            display: "flex", alignItems: "center", justifyContent: "center", padding: 16,
+          }}
+          onClick={() => setShowBuyerModal(false)}
+        >
+          <div
+            style={{
+              background: "var(--surface)", borderRadius: "var(--radius-lg, 14px)",
+              border: "1px solid var(--border)", boxShadow: "0 16px 48px rgba(0,0,0,0.22)",
+              width: "100%", maxWidth: 480, overflow: "hidden",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal header */}
+            <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <div>
+                <div style={{ fontSize: "var(--font-md)", fontWeight: 800 }}>ClinicOS Demo Setup &amp; Contact</div>
+                <div style={{ fontSize: "var(--font-xs)", color: "var(--muted)", marginTop: 2 }}>Buyer information &amp; product overview</div>
+              </div>
+              <button className="btn-icon" onClick={() => setShowBuyerModal(false)} aria-label="Close dialog">
+                <i className="ti ti-x" aria-hidden="true" style={{ fontSize: 14 }} />
+              </button>
+            </div>
+
+            {/* Modal body */}
+            <div style={{ padding: 20, display: "flex", flexDirection: "column", gap: 16 }}>
+
+              {/* Demo note */}
+              <div style={{ padding: 12, borderRadius: "var(--radius)", background: "var(--amber-bg, #fffbeb)", border: "1px solid var(--amber-border, #fcd34d)", display: "flex", gap: 10, alignItems: "flex-start" }}>
+                <i className="ti ti-info-circle" style={{ fontSize: 16, color: "var(--amber)", flexShrink: 0, marginTop: 1 }} />
+                <div style={{ fontSize: "var(--font-xs)", color: "var(--text)", lineHeight: 1.6 }}>
+                  This is a <strong>strict local demo</strong> of ClinicOS. It runs entirely in the browser using sample/demo clinic data — no real patient records, no live backend.
+                </div>
+              </div>
+
+              {/* Current setup */}
+              <div>
+                <div style={{ fontSize: "var(--font-2xs)", color: "var(--muted)", textTransform: "uppercase", fontWeight: 700, letterSpacing: "0.06em", marginBottom: 8 }}>Current Demo Stack</div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  {[
+                    ["ti-brand-typescript", "React / TypeScript frontend"],
+                    ["ti-database", "localStorage demo persistence (no real DB)"],
+                    ["ti-user-shield", "Demo roles — Receptionist, Doctor, Admin"],
+                    ["ti-users", "Sample patient records & appointments"],
+                    ["ti-report-money", "Billing & report previews (demo only)"],
+                    ["ti-clipboard-list", "Audit trail & settings (demo logging)"],
+                  ].map(([icon, label]) => (
+                    <div key={label} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: "var(--font-xs)" }}>
+                      <i className={`ti ${icon}`} style={{ fontSize: 13, color: "var(--accent)", width: 16, flexShrink: 0 }} />
+                      <span style={{ color: "var(--text)" }}>{label}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Production path */}
+              <div>
+                <div style={{ fontSize: "var(--font-2xs)", color: "var(--muted)", textTransform: "uppercase", fontWeight: 700, letterSpacing: "0.06em", marginBottom: 8 }}>Production Setup Can Include</div>
+                <div style={{ fontSize: "var(--font-xs)", color: "var(--muted)", lineHeight: 1.7 }}>
+                  Backend API, authentication, real database, automated backups, security rules, compliance review, and full deployment — none of which are active in this demo.
+                </div>
+              </div>
+
+              {/* Contact */}
+              <div style={{ padding: 14, borderRadius: "var(--radius)", background: "var(--surface2)", border: "1px solid var(--border)" }}>
+                <div style={{ fontSize: "var(--font-2xs)", color: "var(--muted)", textTransform: "uppercase", fontWeight: 700, letterSpacing: "0.06em", marginBottom: 10 }}>Contact</div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <i className="ti ti-user" style={{ fontSize: 13, color: "var(--accent)", width: 16 }} />
+                    <span style={{ fontSize: "var(--font-sm)", fontWeight: 600 }}>Rahil Tahir</span>
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <i className="ti ti-mail" style={{ fontSize: 13, color: "var(--accent)", width: 16 }} />
+                    <a href="mailto:rahil.tahir01@gmail.com" style={{ fontSize: "var(--font-sm)", color: "var(--accent)", textDecoration: "none" }}>
+                      rahil.tahir01@gmail.com
+                    </a>
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <i className="ti ti-phone" style={{ fontSize: 13, color: "var(--accent)", width: 16 }} />
+                    <a href="tel:+918459626957" style={{ fontSize: "var(--font-sm)", color: "var(--accent)", textDecoration: "none" }}>
+                      84596 26957
+                    </a>
+                  </div>
+                </div>
+              </div>
+
+              <button className="btn btn-primary" style={{ width: "100%", justifyContent: "center" }} onClick={() => setShowBuyerModal(false)}>
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20, flexWrap: "wrap", gap: 8 }}>
         <h2 style={{ fontSize: "var(--font-xl)", fontWeight: 800, margin: 0 }}>Settings</h2>
-        <button className="btn btn-ghost" onClick={() => generateSettingsReport("summary")}>
-          <i className="ti ti-file-text" style={{ fontSize: 14 }} /> Report
+        <button className="btn btn-primary" onClick={() => setShowBuyerModal(true)}>
+          <i className="ti ti-info-circle" style={{ fontSize: 14 }} /> Buyer Info
         </button>
       </div>
 
@@ -2608,16 +3040,16 @@ END OF REPORT
           </select>
         </SettingRow>
 
-        <div className="card card-padded">
+        <div className="card card-padded" style={{ overflowX: "auto" }}>
           <div className="section-label" style={{ marginBottom: 10 }}>Role Permissions</div>
-          <div className="tbl-container">
-          <table className="tbl">
+          <div className="tbl-container" style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
+          <table className="tbl" style={{ minWidth: 320, width: "100%" }}>
             <thead>
               <tr>
-                <th>Permission</th>
-                <th>Receptionist</th>
-                <th>Doctor</th>
-                <th>Admin</th>
+                <th style={{ whiteSpace: "nowrap" }}>Permission</th>
+                <th style={{ whiteSpace: "nowrap", textAlign: "center" }}>Receptionist</th>
+                <th style={{ whiteSpace: "nowrap", textAlign: "center" }}>Doctor</th>
+                <th style={{ whiteSpace: "nowrap", textAlign: "center" }}>Admin</th>
               </tr>
             </thead>
             <tbody>
@@ -2631,10 +3063,10 @@ END OF REPORT
                 ["Delete Patient",       false, false, true],
               ].map(([perm, rec, doc, adm]) => (
                 <tr key={perm as string}>
-                  <td style={{ fontSize: "var(--font-sm)" }}>{perm as string}</td>
-                  <td><PermDot on={rec as boolean} /></td>
-                  <td><PermDot on={doc as boolean} /></td>
-                  <td><PermDot on={adm as boolean} /></td>
+                  <td style={{ fontSize: "var(--font-sm)", whiteSpace: "nowrap" }}>{perm as string}</td>
+                  <td style={{ textAlign: "center" }}><PermDot on={rec as boolean} /></td>
+                  <td style={{ textAlign: "center" }}><PermDot on={doc as boolean} /></td>
+                  <td style={{ textAlign: "center" }}><PermDot on={adm as boolean} /></td>
                 </tr>
               ))}
             </tbody>
@@ -2668,7 +3100,7 @@ END OF REPORT
             <i className="ti ti-shield-check" style={{ marginRight: 4 }} />
             Production Security Checklist — Demo Preview
           </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 280px), 1fr))", gap: 12 }}>
             <div style={{ padding: 12, borderRadius: "var(--radius)", background: "var(--surface3)" }}>
               <div style={{ fontSize: "var(--font-sm)", fontWeight: 600, marginBottom: 4 }}>Audit Logging</div>
               <div style={{ fontSize: "var(--font-xs)", color: "var(--muted)" }}>Patient access, modifications, and views are logged locally with timestamps for demo purposes</div>
@@ -2713,7 +3145,7 @@ END OF REPORT
             <i className="ti ti-clipboard-heart" style={{ marginRight: 4 }} />
             Clinical Standards — Demo Preview
           </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 280px), 1fr))", gap: 12 }}>
             <div style={{ padding: 12, borderRadius: "var(--radius)", background: "var(--surface3)" }}>
               <div style={{ fontSize: "var(--font-sm)", fontWeight: 600, marginBottom: 4 }}>ICD-10 Coding</div>
               <div style={{ fontSize: "var(--font-xs)", color: "var(--muted)" }}>International Classification of Diseases, 10th Revision for diagnosis coding</div>
@@ -2753,15 +3185,15 @@ function SettingRow({ icon, label, description, children }: {
   icon: string; label: string; description: string; children: React.ReactNode;
 }) {
   return (
-    <div className="card card-padded" style={{ display: "flex", alignItems: "center", gap: 12 }}>
+    <div className="card card-padded" style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
       <div style={{ width: 38, height: 38, borderRadius: "var(--radius)", background: "var(--accent-soft)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
         <i className={`ti ${icon}`} style={{ fontSize: 17, color: "var(--accent)" }} />
       </div>
-      <div style={{ flex: 1 }}>
+      <div style={{ flex: "1 1 160px", minWidth: 0 }}>
         <div style={{ fontSize: "var(--font-sm)", fontWeight: 600 }}>{label}</div>
         <div style={{ fontSize: "var(--font-xs)", color: "var(--muted)", marginTop: 2, lineHeight: 1.5 }}>{description}</div>
       </div>
-      {children}
+      <div style={{ flexShrink: 0 }}>{children}</div>
     </div>
   );
 }
@@ -2808,7 +3240,7 @@ function StatCard({ label, value, color, icon, bg }: {
 }
 
 // ─── Print Summary Modal ────────────────────────────────────────────────────────
-import { PatientProfilePrint, PrescriptionPrint, MedicalReportPrint, BillingStatementPrint } from "./components/PrintTemplates";
+import { PatientProfilePrint, PrescriptionPrint, MedicalReportPrint, BillingStatementPrint } from "./PrintTemplates";
 
 export function PrintSummaryModal({ patient, onClose }: { patient: Patient; onClose: () => void }) {
   const [printType, setPrintType] = useState<"profile" | "prescription" | "report" | "billing">("profile");
@@ -2874,17 +3306,18 @@ export function PrintSummaryModal({ patient, onClose }: { patient: Patient; onCl
 
   return (
     <div className="modal-backdrop">
-      <div className="modal" style={{ width: "100%", maxWidth: 600 }}>
+      <div className="modal" role="dialog" aria-modal="true" aria-labelledby="print-modal-title" style={{ width: "100%", maxWidth: 600 }}>
         <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <div style={{ fontSize: "var(--font-md)", fontWeight: 700 }}>Print Documents</div>
-          <button className="btn-icon" onClick={onClose}><i className="ti ti-x" style={{ fontSize: 14 }} /></button>
+          <div id="print-modal-title" style={{ fontSize: "var(--font-md)", fontWeight: 700 }}>Print Documents</div>
+          <button className="btn-icon" onClick={onClose} aria-label="Close print documents dialog"><i className="ti ti-x" aria-hidden="true" style={{ fontSize: 14 }} /></button>
         </div>
         <div style={{ padding: 20 }}>
           <div style={{ marginBottom: 20 }}>
             <div style={{ fontSize: "var(--font-2xs)", color: "var(--muted)", textTransform: "uppercase", marginBottom: 8 }}>Select Document Type</div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 10 }}>
+            <div role="group" aria-label="Document type" style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 10 }}>
               <button
                 onClick={() => setPrintType("profile")}
+                aria-pressed={printType === "profile"}
                 style={{
                   padding: "16px",
                   border: "2px solid",
@@ -2896,12 +3329,13 @@ export function PrintSummaryModal({ patient, onClose }: { patient: Patient; onCl
                   transition: "all 0.2s"
                 }}
               >
-                <i className="ti ti-file-text" style={{ fontSize: 20, color: "var(--accent)", marginBottom: 8 }} />
+                <i className="ti ti-file-text" aria-hidden="true" style={{ fontSize: 20, color: "var(--accent)", marginBottom: 8 }} />
                 <div style={{ fontSize: "var(--font-sm)", fontWeight: 600 }}>Patient Profile</div>
                 <div style={{ fontSize: "var(--font-2xs)", color: "var(--muted)" }}>Complete medical record</div>
               </button>
               <button
                 onClick={() => setPrintType("prescription")}
+                aria-pressed={printType === "prescription"}
                 style={{
                   padding: "16px",
                   border: "2px solid",
@@ -2913,12 +3347,13 @@ export function PrintSummaryModal({ patient, onClose }: { patient: Patient; onCl
                   transition: "all 0.2s"
                 }}
               >
-                <i className="ti ti-prescription" style={{ fontSize: 20, color: "var(--accent)", marginBottom: 8 }} />
+                <i className="ti ti-prescription" aria-hidden="true" style={{ fontSize: 20, color: "var(--accent)", marginBottom: 8 }} />
                 <div style={{ fontSize: "var(--font-sm)", fontWeight: 600 }}>Prescription</div>
                 <div style={{ fontSize: "var(--font-2xs)", color: "var(--muted)" }}>Medication details</div>
               </button>
               <button
                 onClick={() => setPrintType("report")}
+                aria-pressed={printType === "report"}
                 style={{
                   padding: "16px",
                   border: "2px solid",
@@ -2930,12 +3365,13 @@ export function PrintSummaryModal({ patient, onClose }: { patient: Patient; onCl
                   transition: "all 0.2s"
                 }}
               >
-                <i className="ti ti-file-report" style={{ fontSize: 20, color: "var(--accent)", marginBottom: 8 }} />
+                <i className="ti ti-file-report" aria-hidden="true" style={{ fontSize: 20, color: "var(--accent)", marginBottom: 8 }} />
                 <div style={{ fontSize: "var(--font-sm)", fontWeight: 600 }}>Medical Report</div>
                 <div style={{ fontSize: "var(--font-2xs)", color: "var(--muted)" }}>Lab/Radiology results</div>
               </button>
               <button
                 onClick={() => setPrintType("billing")}
+                aria-pressed={printType === "billing"}
                 style={{
                   padding: "16px",
                   border: "2px solid",
@@ -2947,7 +3383,7 @@ export function PrintSummaryModal({ patient, onClose }: { patient: Patient; onCl
                   transition: "all 0.2s"
                 }}
               >
-                <i className="ti ti-receipt" style={{ fontSize: 20, color: "var(--accent)", marginBottom: 8 }} />
+                <i className="ti ti-receipt" aria-hidden="true" style={{ fontSize: 20, color: "var(--accent)", marginBottom: 8 }} />
                 <div style={{ fontSize: "var(--font-sm)", fontWeight: 600 }}>Billing Statement</div>
                 <div style={{ fontSize: "var(--font-2xs)", color: "var(--muted)" }}>Invoice details</div>
               </button>

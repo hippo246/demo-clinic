@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import type { NavTab } from "./components/TopBar";
+import type { NavTab } from "./TopBar";
 
 const NAV_TABS: { id: NavTab; label: string; icon: string }[] = [
   { id: "patients",     label: "Patients",     icon: "ti-users" },
@@ -44,7 +44,6 @@ export default function Sidebar({
       className="desktop-only"
       role="navigation"
       aria-label={collapsed ? "Navigation (collapsed)" : "Sidebar navigation"}
-      aria-expanded={!collapsed}
       style={{
         width: collapsed ? 56 : 200,
         flexShrink: 0,
@@ -76,7 +75,7 @@ export default function Sidebar({
           onClick={() => setActiveTab(id)}
           aria-current={activeTab === id ? "page" : undefined}
           title={collapsed ? label : undefined}
-          className={`sidebar-nav-item${activeTab === id ? " active" : ""}${collapsed ? " collapsed" : ""}`}
+          className={`sidebar-nav-item${activeTab === id ? " active" : ""}`}
         >
           <i className={`ti ${icon} nav-icon`} aria-hidden="true" />
           {!collapsed && label}
@@ -90,8 +89,8 @@ export default function Sidebar({
       <button
         onClick={toggleCollapsed}
         aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+        aria-expanded={!collapsed}
         className="sidebar-nav-item"
-        style={{ justifyContent: collapsed ? "center" : undefined }}
       >
         <i
           className={`ti ${collapsed ? "ti-layout-sidebar-right-expand" : "ti-layout-sidebar-right-collapse"} nav-icon`}

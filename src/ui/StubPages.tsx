@@ -42,6 +42,7 @@ export function AppointmentsPage({ patients, onSelectPatient }: { patients: Pati
   const [showBooking, setShowBooking] = useState(false);
   const [showWaitlistModal, setShowWaitlistModal] = useState(false);
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
+  const [calPopupPatient, setCalPopupPatient] = useState<Patient | null>(null);
   const [filterDoctor, setFilterDoctor] = useState("All");
   const [filterStatus, setFilterStatus] = useState("All");
   const [dateRange, setDateRange] = useState({ start: "", end: "" });
@@ -191,11 +192,11 @@ END OF REPORT
   }
 
   return (
-    <div style={{ padding: 24, width: "100%" }}>
+    <div style={{ padding: 24, width: "100%" }} className="page-container">
       {apptToast && <DemoToast message={apptToast} onDismiss={() => {}} />}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20, flexWrap: "wrap", gap: 12 }} className="page-header">
         <h2 style={{ fontSize: "var(--font-xl)", fontWeight: 800, margin: 0 }}>Appointments</h2>
-        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }} className="page-header-actions">
           <input ref={apptImportRef} type="file" accept=".csv,.xlsx" style={{ display: "none" }} onChange={handleApptImport} aria-label="Upload appointments CSV or Excel file" />
 
           {/* PDF dropdown */}
@@ -282,7 +283,7 @@ END OF REPORT
         </div>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 24 }}>
+      <div className="stat-cards-grid" style={{ marginBottom: 24 }}>
         <div className="stat-card">
           <div className="stat-label"><i className="ti ti-calendar" style={{ fontSize: 11, marginRight: 4 }} />Upcoming</div>
           <div className="stat-value" style={{ color: "var(--blue)" }}>{upcoming.length}</div>
@@ -304,8 +305,8 @@ END OF REPORT
       {/* Clinical Workflow Indicators */}
       <div className="card card-padded" style={{ marginBottom: 24 }}>
         <div className="section-label" style={{ marginBottom: 12 }}>Clinical Workflow Status</div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16 }}>
-          <div style={{ padding: 12, borderRadius: "var(--radius)", background: "var(--surface3)" }}>
+        <div className="clinical-workflow-grid">
+          <div style={{ padding: 12, borderRadius: "var(--radius)", background: "var(--surface3)", border: "1px solid var(--border)", boxShadow: "0 2px 4px rgba(0,0,0,0.02)" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 6 }}>
               <div style={{ fontSize: "var(--font-xs)", color: "var(--muted)" }}>Pre-Visit Prep</div>
               <div style={{ fontSize: "var(--font-sm)", fontWeight: 700, color: "var(--green)" }}>92%</div>
@@ -315,7 +316,7 @@ END OF REPORT
             </div>
             <div style={{ fontSize: "var(--font-2xs)", color: "var(--muted)", marginTop: 4 }}>Complete</div>
           </div>
-          <div style={{ padding: 12, borderRadius: "var(--radius)", background: "var(--surface3)" }}>
+          <div style={{ padding: 12, borderRadius: "var(--radius)", background: "var(--surface3)", border: "1px solid var(--border)", boxShadow: "0 2px 4px rgba(0,0,0,0.02)" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 6 }}>
               <div style={{ fontSize: "var(--font-xs)", color: "var(--muted)" }}>Check-In Ready</div>
               <div style={{ fontSize: "var(--font-sm)", fontWeight: 700, color: "var(--accent)" }}>88%</div>
@@ -325,7 +326,7 @@ END OF REPORT
             </div>
             <div style={{ fontSize: "var(--font-2xs)", color: "var(--muted)", marginTop: 4 }}>Ready</div>
           </div>
-          <div style={{ padding: 12, borderRadius: "var(--radius)", background: "var(--surface3)" }}>
+          <div style={{ padding: 12, borderRadius: "var(--radius)", background: "var(--surface3)", border: "1px solid var(--border)", boxShadow: "0 2px 4px rgba(0,0,0,0.02)" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 6 }}>
               <div style={{ fontSize: "var(--font-xs)", color: "var(--muted)" }}>Room Availability</div>
               <div style={{ fontSize: "var(--font-sm)", fontWeight: 700, color: "var(--blue)" }}>5/8</div>
@@ -335,7 +336,7 @@ END OF REPORT
             </div>
             <div style={{ fontSize: "var(--font-2xs)", color: "var(--muted)", marginTop: 4 }}>Available</div>
           </div>
-          <div style={{ padding: 12, borderRadius: "var(--radius)", background: "var(--surface3)" }}>
+          <div style={{ padding: 12, borderRadius: "var(--radius)", background: "var(--surface3)", border: "1px solid var(--border)", boxShadow: "0 2px 4px rgba(0,0,0,0.02)" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 6 }}>
               <div style={{ fontSize: "var(--font-xs)", color: "var(--muted)" }}>Lab Results</div>
               <div style={{ fontSize: "var(--font-sm)", fontWeight: 700, color: "var(--amber)" }}>12</div>
@@ -464,7 +465,7 @@ END OF REPORT
             <i className="ti ti-list-details" style={{ marginRight: 4 }} />
             Waitlist ({waitlist.length})
           </div>
-          <div className="card" style={{ overflow: "hidden" }}>
+          <div className="card desktop-only" style={{ overflow: "hidden" }}>
             <div className="tbl-container">
             <table className="tbl">
               <thead>
@@ -513,6 +514,40 @@ END OF REPORT
             </table>
             </div>
           </div>
+          <div className="mobile-only-block" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            {waitlist.length === 0 ? (
+              <div className="empty-state card card-padded"><i className="ti ti-list empty-state-icon" /><div className="empty-state-sub">No patients on waitlist</div></div>
+            ) : waitlist.sort((a, b) => {
+              const priorityOrder = { High: 0, Medium: 1, Low: 2 };
+              return priorityOrder[a.priority as keyof typeof priorityOrder] - priorityOrder[b.priority as keyof typeof priorityOrder];
+            }).map((entry) => (
+              <div key={entry.id} className="card card-padded" style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                  <div>
+                    <div style={{ fontWeight: 600, fontSize: "var(--font-sm)" }}>{entry.patientName}</div>
+                    <div style={{ fontSize: "var(--font-xs)", color: "var(--muted)" }}>{entry.patientId}</div>
+                  </div>
+                  <span className="tag" style={{ background: entry.priority === "High" ? "var(--red-bg)" : entry.priority === "Medium" ? "var(--amber-bg)" : "var(--blue-bg)", color: entry.priority === "High" ? "var(--red)" : entry.priority === "Medium" ? "var(--amber)" : "var(--blue)" }}>
+                    {entry.priority}
+                  </span>
+                </div>
+                <div style={{ fontSize: "var(--font-sm)" }}>{entry.reason}</div>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <div style={{ fontSize: "var(--font-xs)", color: "var(--muted)" }}>
+                    {fmtDate(entry.requestedDate)} at {entry.requestedTime}
+                  </div>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <button className="btn-icon" style={{ padding: 6, background: "var(--surface2)" }} onClick={() => setShowBooking(true)}>
+                      <i className="ti ti-calendar-plus" style={{ fontSize: 14 }} />
+                    </button>
+                    <button className="btn-icon" style={{ padding: 6, background: "var(--red-bg)", color: "var(--red)" }} onClick={() => setWaitlist(waitlist.filter((w) => w.id !== entry.id))}>
+                      <i className="ti ti-trash" style={{ fontSize: 14 }} />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
@@ -523,7 +558,7 @@ END OF REPORT
             <i className="ti ti-calendar-check" style={{ marginRight: 4 }} />
             Upcoming Appointments
           </div>
-          <div className="card" style={{ overflow: "hidden" }}>
+          <div className="card desktop-only" style={{ overflow: "hidden" }}>
             <div className="tbl-container">
             <table className="tbl">
               <thead>
@@ -599,6 +634,59 @@ END OF REPORT
           </table>
           </div>
         </div>
+        <div className="mobile-only-block" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            {upcoming.length === 0 ? (
+              <div className="empty-state card card-padded"><i className="ti ti-calendar-off empty-state-icon" /><div className="empty-state-sub">No upcoming appointments</div></div>
+            ) : upcoming.map((p) => {
+              const isToday = new Date(p.nextAppointment!).toDateString() === new Date().toDateString();
+              const isCancelled = cancelledIds.has(p.id);
+              return (
+                <div key={p.id} className="card card-padded" onClick={() => onSelectPatient?.(p)} style={isToday && !isCancelled ? { background: "var(--accent-soft)", borderColor: "var(--accent)" } : undefined}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
+                    <div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                        <div style={{ fontWeight: 600, fontSize: "var(--font-sm)" }}>{p.name}</div>
+                        {isToday && !isCancelled && (
+                          <span style={{ fontSize: "var(--font-2xs)", fontWeight: 700, color: "var(--accent)", background: "var(--surface)", border: "1px solid var(--accent)", borderRadius: 4, padding: "1px 5px" }}>Today</span>
+                        )}
+                      </div>
+                      <div style={{ fontSize: "var(--font-xs)", color: "var(--muted)" }}>{p.id} · {p.doctor}</div>
+                    </div>
+                    {isCancelled ? (
+                      <span className="badge" style={{ background: "var(--red-bg)", color: "var(--red)", border: "1px solid var(--red-border)" }}>Cancelled</span>
+                    ) : isToday ? (
+                      <span className="badge" style={{ background: "var(--green-bg)", color: "var(--green)", border: "1px solid var(--green-border)" }}>Today</span>
+                    ) : (
+                      <span className="badge" style={{ background: "var(--blue-bg)", color: "var(--blue)", border: "1px solid var(--blue-border)" }}>Scheduled</span>
+                    )}
+                  </div>
+                  <div style={{ fontSize: "var(--font-sm)", marginBottom: 12 }}>
+                    <i className="ti ti-calendar" style={{ marginRight: 6, color: "var(--muted)" }} />
+                    <span style={{ fontWeight: 600 }}>{fmtDate(p.nextAppointment)}</span> at {new Date(p.nextAppointment!).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}
+                  </div>
+                  <div style={{ fontSize: "var(--font-sm)", color: "var(--muted)", marginBottom: 12 }}>
+                    Type: {p.followUpReason || "General Checkup"}
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }} onClick={(e) => e.stopPropagation()}>
+                    {!isCancelled && (
+                      <button className="btn btn-ghost" style={{ flex: 1, padding: "6px" }} onClick={() => setShowBooking(true)}>
+                        <i className="ti ti-calendar-clock" style={{ marginRight: 4 }} /> Reschedule
+                      </button>
+                    )}
+                    {isCancelled ? (
+                      <button className="btn btn-ghost" style={{ flex: 1, padding: "6px", color: "var(--green)" }} onClick={() => setCancelledIds(prev => { const n = new Set(prev); n.delete(p.id); return n; })}>
+                        <i className="ti ti-rotate-clockwise" style={{ marginRight: 4 }} /> Restore
+                      </button>
+                    ) : (
+                      <button className="btn btn-ghost" style={{ flex: 1, padding: "6px", color: "var(--red)" }} onClick={() => setCancelledIds(prev => new Set(prev).add(p.id))}>
+                        <i className="ti ti-calendar-x" style={{ marginRight: 4 }} /> Cancel
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+        </div>
       </div>
       )}
 
@@ -656,7 +744,7 @@ END OF REPORT
                             <button
                               key={p.id}
                               type="button"
-                              onClick={() => onSelectPatient?.(p)}
+                              onClick={() => setCalPopupPatient(p)}
                               aria-label={`View appointment for ${p.name}`}
                               style={{
                                 display: "block", width: "100%", textAlign: "left", border: "none",
@@ -679,6 +767,68 @@ END OF REPORT
           </div>
         );
       })()}
+
+      {/* Calendar Appointment Popup */}
+      {calPopupPatient && (
+        <div className="modal-backdrop" onClick={() => setCalPopupPatient(null)}>
+          <div className="modal" style={{ width: 340, padding: 24 }} onClick={(e) => e.stopPropagation()}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
+              <div>
+                <div style={{ fontSize: "var(--font-lg)", fontWeight: 800 }}>{calPopupPatient.name}</div>
+                <div style={{ fontSize: "var(--font-xs)", color: "var(--muted)", marginTop: 2 }}>{calPopupPatient.id}</div>
+              </div>
+              <button className="btn-icon" style={{ padding: 4 }} onClick={() => setCalPopupPatient(null)}>
+                <i className="ti ti-x" style={{ fontSize: 14 }} />
+              </button>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 20 }}>
+              <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                <i className="ti ti-calendar" style={{ fontSize: 14, color: "var(--accent)", width: 18 }} />
+                <div>
+                  <div style={{ fontSize: "var(--font-xs)", color: "var(--muted)" }}>Appointment</div>
+                  <div style={{ fontSize: "var(--font-sm)", fontWeight: 600 }}>{fmtDate(calPopupPatient.nextAppointment)}</div>
+                </div>
+              </div>
+              <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                <i className="ti ti-stethoscope" style={{ fontSize: 14, color: "var(--purple)", width: 18 }} />
+                <div>
+                  <div style={{ fontSize: "var(--font-xs)", color: "var(--muted)" }}>Doctor</div>
+                  <div style={{ fontSize: "var(--font-sm)", fontWeight: 600 }}>{calPopupPatient.doctor}</div>
+                </div>
+              </div>
+              <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                <i className="ti ti-heart-rate" style={{ fontSize: 14, color: "var(--green)", width: 18 }} />
+                <div>
+                  <div style={{ fontSize: "var(--font-xs)", color: "var(--muted)" }}>Reason</div>
+                  <div style={{ fontSize: "var(--font-sm)", fontWeight: 600 }}>{calPopupPatient.followUpReason || "General Consultation"}</div>
+                </div>
+              </div>
+              <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                <i className="ti ti-activity" style={{ fontSize: 14, color: "var(--amber)", width: 18 }} />
+                <div>
+                  <div style={{ fontSize: "var(--font-xs)", color: "var(--muted)" }}>Status</div>
+                  <div style={{ fontSize: "var(--font-sm)", fontWeight: 600 }}>{calPopupPatient.status}</div>
+                </div>
+              </div>
+              {calPopupPatient.phone && (
+                <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                  <i className="ti ti-phone" style={{ fontSize: 14, color: "var(--muted)", width: 18 }} />
+                  <div>
+                    <div style={{ fontSize: "var(--font-xs)", color: "var(--muted)" }}>Phone</div>
+                    <a href={`tel:${calPopupPatient.phone}`} style={{ fontSize: "var(--font-sm)", fontWeight: 600, color: "var(--accent)", textDecoration: "none" }}>{calPopupPatient.phone}</a>
+                  </div>
+                </div>
+              )}
+            </div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button className="btn btn-ghost" style={{ flex: 1 }} onClick={() => setCalPopupPatient(null)}>Close</button>
+              <button className="btn btn-primary" style={{ flex: 1 }} onClick={() => { onSelectPatient?.(calPopupPatient); setCalPopupPatient(null); }}>
+                <i className="ti ti-user" style={{ fontSize: 13 }} /> View Profile
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Booking Modal */}
       {showBooking && (
@@ -989,10 +1139,10 @@ END OF REPORT
   }
 
   return (
-    <div style={{ padding: 24, width: "100%" }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
-        <h2 style={{ fontSize: "var(--font-xl)", fontWeight: 800, margin: 0 }}>Billing & Insurance</h2>
-        <div style={{ display: "flex", gap: 8 }}>
+    <div style={{ padding: 24, width: "100%" }} className="page-container">
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20, flexWrap: "wrap", gap: 12 }} className="page-header">
+        <h2 style={{ fontSize: "var(--font-xl)", fontWeight: 800, margin: 0 }}>Billing &amp; Insurance</h2>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }} className="page-header-actions">
           <button className="btn btn-ghost" onClick={() => generateBillingReport("summary")}>
             <i className="ti ti-file-text" style={{ fontSize: 14 }} /> Report
           </button>
@@ -1050,15 +1200,7 @@ END OF REPORT
       {/* Overview View */}
       {billingView === "overview" && (
         <>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 24 }} className="desktop-only">
-            <StatCard label="Active Insurance" value={insured.length} color="var(--green)" icon="ti-shield-check" bg="var(--green-bg)" />
-            <StatCard label="Expiring Soon"    value={expiring.length} color="var(--amber)" icon="ti-shield-exclamation" bg="var(--amber-bg)" />
-            <StatCard label="Expired"          value={expired.length}  color="var(--red)"   icon="ti-shield-x" bg="var(--red-bg)" />
-            <StatCard label="No Insurance"     value={none.length}     color="var(--muted)" icon="ti-shield-off" bg="var(--surface3)" />
-          </div>
-
-          {/* Mobile version - 2 column grid */}
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 12, marginBottom: 24 }} className="mobile-only">
+          <div className="stat-cards-grid" style={{ marginBottom: 24 }}>
             <StatCard label="Active Insurance" value={insured.length} color="var(--green)" icon="ti-shield-check" bg="var(--green-bg)" />
             <StatCard label="Expiring Soon"    value={expiring.length} color="var(--amber)" icon="ti-shield-exclamation" bg="var(--amber-bg)" />
             <StatCard label="Expired"          value={expired.length}  color="var(--red)"   icon="ti-shield-x" bg="var(--red-bg)" />
@@ -1086,7 +1228,7 @@ END OF REPORT
                 <i className="ti ti-shield-x" style={{ marginRight: 4 }} />
                 Expired Insurance — Action Required ({expired.length})
               </div>
-              <div className="card" style={{ overflow: "hidden" }}>
+              <div className="card desktop-only" style={{ overflow: "hidden" }}>
                 <table className="tbl">
                   <thead>
                     <tr><th>Patient</th><th>Provider</th><th>Policy Number</th><th>Expired</th><th>Actions</th></tr>
@@ -1116,6 +1258,30 @@ END OF REPORT
               </tbody>
             </table>
             </div>
+            <div className="mobile-only-block" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                {expired.slice(0, 15).map((p) => (
+                  <div key={p.id} className="card card-padded" onClick={() => onSelectPatient?.(p)}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
+                      <div>
+                        <div style={{ fontWeight: 600, fontSize: "var(--font-sm)" }}>{p.name}</div>
+                        <div style={{ fontSize: "var(--font-xs)", color: "var(--muted)" }}>{p.id}</div>
+                      </div>
+                      <div style={{ fontSize: "var(--font-sm)", fontWeight: 700, color: "var(--red)" }}>Expired {fmtDate(p.insuranceExpiry)}</div>
+                    </div>
+                    <div style={{ fontSize: "var(--font-sm)", color: "var(--muted)", marginBottom: 12 }}>
+                      {p.insurer} · {p.policyNumber || "No Policy #"}
+                    </div>
+                    <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+                      <button className="btn btn-ghost" style={{ padding: "6px" }} onClick={(e) => { e.stopPropagation(); setRemindedIds(prev => new Set(prev).add(p.id)); }} disabled={remindedIds.has(p.id)}>
+                        <i className="ti ti-bell" style={{ marginRight: 4, color: remindedIds.has(p.id) ? "var(--green)" : undefined }} /> {remindedIds.has(p.id) ? "Sent" : "Remind"}
+                      </button>
+                      <button className="btn btn-ghost" style={{ padding: "6px" }} onClick={(e) => { e.stopPropagation(); onSelectPatient?.(p); }}>
+                        <i className="ti ti-edit" style={{ marginRight: 4 }} /> Update
+                      </button>
+                    </div>
+                  </div>
+                ))}
+            </div>
           </div>
       )}
 
@@ -1143,7 +1309,7 @@ END OF REPORT
             <i className="ti ti-file-invoice" style={{ marginRight: 4 }} />
             Insurance Claims ({insuranceClaims.length})
           </div>
-          <div className="card" style={{ overflow: "hidden" }}>
+          <div className="card desktop-only" style={{ overflow: "hidden" }}>
             <div className="tbl-container">
             <table className="tbl">
               <thead>
@@ -1180,6 +1346,33 @@ END OF REPORT
             </table>
             </div>
           </div>
+          <div className="mobile-only-block" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            {insuranceClaims.length === 0 ? (
+              <div className="empty-state card card-padded"><i className="ti ti-file-invoice empty-state-icon" /><div className="empty-state-sub">No insurance claims</div></div>
+            ) : insuranceClaims.map((claim) => (
+              <div key={claim.id} className="card card-padded">
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
+                  <div>
+                    <div style={{ fontWeight: 600, fontSize: "var(--font-sm)" }}>{claim.claimNumber}</div>
+                    <div style={{ fontSize: "var(--font-xs)", color: "var(--muted)" }}>{claim.patientName}</div>
+                  </div>
+                  <span className="tag" style={{ background: claim.status === "Approved" ? "var(--green-bg)" : claim.status === "Rejected" ? "var(--red-bg)" : claim.status === "Paid" ? "var(--blue-bg)" : "var(--surface3)", color: claim.status === "Approved" ? "var(--green)" : claim.status === "Rejected" ? "var(--red)" : claim.status === "Paid" ? "var(--blue)" : "var(--muted)" }}>
+                    {claim.status}
+                  </span>
+                </div>
+                <div style={{ fontSize: "var(--font-sm)", marginBottom: 4 }}>{claim.serviceType}</div>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <div style={{ fontSize: "var(--font-xs)", color: "var(--muted)" }}>{fmtDate(claim.serviceDate)}</div>
+                  <div style={{ fontSize: "var(--font-sm)", fontWeight: 600 }}>₹{claim.amount.toLocaleString()}</div>
+                </div>
+                <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--border)" }}>
+                  <button className="btn btn-ghost" style={{ padding: "4px 8px" }} onClick={() => setInsuranceClaims(insuranceClaims.filter((c) => c.id !== claim.id))}>
+                    <i className="ti ti-trash" style={{ color: "var(--red)", marginRight: 4 }} /> Delete
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
@@ -1190,7 +1383,7 @@ END OF REPORT
             <i className="ti ti-file-check" style={{ marginRight: 4 }} />
             Pre-Authorizations ({preAuthorizations.length})
           </div>
-          <div className="card" style={{ overflow: "hidden" }}>
+          <div className="card desktop-only" style={{ overflow: "hidden" }}>
             <div className="tbl-container">
             <table className="tbl">
               <thead>
@@ -1227,6 +1420,35 @@ END OF REPORT
               </tbody>
             </table>
             </div>
+          </div>
+          <div className="mobile-only-block" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            {preAuthorizations.length === 0 ? (
+              <div className="empty-state card card-padded"><i className="ti ti-file-check empty-state-icon" /><div className="empty-state-sub">No pre-authorizations</div></div>
+            ) : preAuthorizations.map((preAuth) => (
+              <div key={preAuth.id} className="card card-padded">
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
+                  <div>
+                    <div style={{ fontWeight: 600, fontSize: "var(--font-sm)" }}>{preAuth.procedure}</div>
+                    <div style={{ fontSize: "var(--font-xs)", color: "var(--muted)" }}>{preAuth.patientName}</div>
+                  </div>
+                  <span className="tag" style={{ background: preAuth.status === "Approved" ? "var(--green-bg)" : preAuth.status === "Denied" ? "var(--red-bg)" : preAuth.status === "Additional Info Required" ? "var(--amber-bg)" : "var(--surface3)", color: preAuth.status === "Approved" ? "var(--green)" : preAuth.status === "Denied" ? "var(--red)" : preAuth.status === "Additional Info Required" ? "var(--amber)" : "var(--muted)" }}>
+                    {preAuth.status}
+                  </span>
+                </div>
+                <div style={{ fontSize: "var(--font-sm)", color: "var(--muted)", marginBottom: 12 }}>
+                  ICD: {preAuth.icdCode} · CPT: {preAuth.cptCode}
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <div style={{ fontSize: "var(--font-xs)", color: "var(--muted)" }}>{fmtDate(preAuth.requestedDate)}</div>
+                  <div style={{ fontSize: "var(--font-sm)", fontWeight: 600 }}>{preAuth.approvedAmount ? `₹${preAuth.approvedAmount.toLocaleString()}` : "—"}</div>
+                </div>
+                <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--border)" }}>
+                  <button className="btn btn-ghost" style={{ padding: "4px 8px" }} onClick={() => setPreAuthorizations(preAuthorizations.filter((p) => p.id !== preAuth.id))}>
+                    <i className="ti ti-trash" style={{ color: "var(--red)", marginRight: 4 }} /> Delete
+                  </button>
+                </div>
+              </div>
+            ))}
           </div>
 
           {/* Medical Coding Reference */}
@@ -1273,7 +1495,7 @@ END OF REPORT
               <i className="ti ti-calendar-plus" style={{ fontSize: 14 }} /> Create Payment Plan
             </button>
           </div>
-          <div className="card" style={{ overflow: "hidden" }}>
+          <div className="card desktop-only" style={{ overflow: "hidden" }}>
             <div className="tbl-container">
             <table className="tbl">
               <thead>
@@ -1318,6 +1540,39 @@ END OF REPORT
             </table>
             </div>
           </div>
+          <div className="mobile-only-block" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            {paymentPlans.length === 0 ? (
+              <div className="empty-state card card-padded"><i className="ti ti-calendar-check empty-state-icon" /><div className="empty-state-sub">No payment plans</div></div>
+            ) : paymentPlans.map((plan) => (
+              <div key={plan.id} className="card card-padded">
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
+                  <div>
+                    <div style={{ fontWeight: 600, fontSize: "var(--font-sm)" }}>{plan.patientName}</div>
+                    <div style={{ fontSize: "var(--font-xs)", color: "var(--muted)" }}>Total: ₹{plan.totalAmount.toLocaleString()}</div>
+                  </div>
+                  <span className="tag" style={{ background: plan.status === "Active" ? "var(--green-bg)" : plan.status === "Completed" ? "var(--blue-bg)" : "var(--surface3)", color: plan.status === "Active" ? "var(--green)" : plan.status === "Completed" ? "var(--blue)" : "var(--muted)" }}>
+                    {plan.status}
+                  </span>
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                  <div style={{ fontSize: "var(--font-sm)", color: "var(--green)" }}>Paid: ₹{plan.paidAmount.toLocaleString()}</div>
+                  <div style={{ fontSize: "var(--font-sm)", color: "var(--red)" }}>Rem: ₹{plan.remainingAmount.toLocaleString()}</div>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+                  <div style={{ flex: 1, height: 6, background: "var(--border)", borderRadius: 3, overflow: "hidden" }}>
+                    <div style={{ height: "100%", background: "var(--accent)", borderRadius: 3, width: `${(plan.paidInstallments / plan.installments) * 100}%` }} />
+                  </div>
+                  <span style={{ fontSize: "var(--font-xs)", color: "var(--muted)" }}>{plan.paidInstallments}/{plan.installments}</span>
+                </div>
+                <div style={{ fontSize: "var(--font-xs)", color: "var(--muted)" }}>Next Due: {plan.nextDueDate ? fmtDate(plan.nextDueDate) : "—"}</div>
+                <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--border)" }}>
+                  <button className="btn btn-ghost" style={{ padding: "4px 8px" }} onClick={() => setPaymentPlans(paymentPlans.filter((p) => p.id !== plan.id))}>
+                    <i className="ti ti-trash" style={{ color: "var(--red)", marginRight: 4 }} /> Delete
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
@@ -1325,15 +1580,7 @@ END OF REPORT
       {billingView === "analytics" && (
         <div>
           <div className="section-label" style={{ marginBottom: 16 }}>Revenue Analytics</div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 24 }} className="desktop-only">
-            <StatCard label="Total Revenue" value="₹2.5L" color="var(--green)" icon="ti-trending-up" bg="var(--green-bg)" />
-            <StatCard label="Pending Payments" value="₹45K" color="var(--amber)" icon="ti-clock" bg="var(--amber-bg)" />
-            <StatCard label="Insurance Claims" value={insuranceClaims.length} color="var(--blue)" icon="ti-file-invoice" bg="var(--blue-bg)" />
-            <StatCard label="Payment Plans" value={paymentPlans.length} color="var(--purple)" icon="ti-calendar-check" bg="var(--surface3)" />
-          </div>
-
-          {/* Mobile version - 2 column grid */}
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 12, marginBottom: 24 }} className="mobile-only">
+          <div className="stat-cards-grid" style={{ marginBottom: 24 }}>
             <StatCard label="Total Revenue" value="₹2.5L" color="var(--green)" icon="ti-trending-up" bg="var(--green-bg)" />
             <StatCard label="Pending Payments" value="₹45K" color="var(--amber)" icon="ti-clock" bg="var(--amber-bg)" />
             <StatCard label="Insurance Claims" value={insuranceClaims.length} color="var(--blue)" icon="ti-file-invoice" bg="var(--blue-bg)" />
@@ -1343,15 +1590,15 @@ END OF REPORT
             <div className="card card-padded">
               <div className="section-label" style={{ marginBottom: 12 }}>Payment Status Breakdown</div>
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: 8, borderRadius: "var(--radius)", background: "var(--surface3)" }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: 8, borderRadius: "var(--radius)", background: "var(--surface3)", border: "1px solid var(--border)", boxShadow: "0 2px 4px rgba(0,0,0,0.02)" }}>
                   <span style={{ fontSize: "var(--font-sm)" }}>Paid</span>
                   <span style={{ fontSize: "var(--font-sm)", fontWeight: 600, color: "var(--green)" }}>₹1.8L (72%)</span>
                 </div>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: 8, borderRadius: "var(--radius)", background: "var(--surface3)" }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: 8, borderRadius: "var(--radius)", background: "var(--surface3)", border: "1px solid var(--border)", boxShadow: "0 2px 4px rgba(0,0,0,0.02)" }}>
                   <span style={{ fontSize: "var(--font-sm)" }}>Pending</span>
                   <span style={{ fontSize: "var(--font-sm)", fontWeight: 600, color: "var(--amber)" }}>₹45K (18%)</span>
                 </div>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: 8, borderRadius: "var(--radius)", background: "var(--surface3)" }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: 8, borderRadius: "var(--radius)", background: "var(--surface3)", border: "1px solid var(--border)", boxShadow: "0 2px 4px rgba(0,0,0,0.02)" }}>
                   <span style={{ fontSize: "var(--font-sm)" }}>Overdue</span>
                   <span style={{ fontSize: "var(--font-sm)", fontWeight: 600, color: "var(--red)" }}>₹25K (10%)</span>
                 </div>
@@ -1368,7 +1615,7 @@ END OF REPORT
           </div>
           <div className="card card-padded">
             <div className="section-label" style={{ marginBottom: 12 }}>Revenue Trend (Last 6 Months)</div>
-            <div style={{ display: "flex", alignItems: "flex-end", gap: 12, height: 120, padding: 12, background: "var(--surface3)", borderRadius: "var(--radius)" }}>
+            <div style={{ display: "flex", alignItems: "flex-end", gap: 12, height: 120, padding: 12, background: "var(--surface3)", border: "1px solid var(--border)", boxShadow: "0 2px 4px rgba(0,0,0,0.02)", borderRadius: "var(--radius)" }}>
               {[
                 { month: "Aug", value: 35 },
                 { month: "Sep", value: 42 },
@@ -1390,15 +1637,15 @@ END OF REPORT
             <div className="card card-padded">
               <div className="section-label" style={{ marginBottom: 12 }}>Payment Status Breakdown</div>
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: 8, borderRadius: "var(--radius)", background: "var(--surface3)" }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: 8, borderRadius: "var(--radius)", background: "var(--surface3)", border: "1px solid var(--border)", boxShadow: "0 2px 4px rgba(0,0,0,0.02)" }}>
                   <span style={{ fontSize: "var(--font-sm)" }}>Paid</span>
                   <span style={{ fontSize: "var(--font-sm)", fontWeight: 600, color: "var(--green)" }}>₹1.8L (72%)</span>
                 </div>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: 8, borderRadius: "var(--radius)", background: "var(--surface3)" }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: 8, borderRadius: "var(--radius)", background: "var(--surface3)", border: "1px solid var(--border)", boxShadow: "0 2px 4px rgba(0,0,0,0.02)" }}>
                   <span style={{ fontSize: "var(--font-sm)" }}>Pending</span>
                   <span style={{ fontSize: "var(--font-sm)", fontWeight: 600, color: "var(--amber)" }}>₹45K (18%)</span>
                 </div>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: 8, borderRadius: "var(--radius)", background: "var(--surface3)" }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: 8, borderRadius: "var(--radius)", background: "var(--surface3)", border: "1px solid var(--border)", boxShadow: "0 2px 4px rgba(0,0,0,0.02)" }}>
                   <span style={{ fontSize: "var(--font-sm)" }}>Overdue</span>
                   <span style={{ fontSize: "var(--font-sm)", fontWeight: 600, color: "var(--red)" }}>₹25K (10%)</span>
                 </div>
@@ -1414,7 +1661,7 @@ END OF REPORT
             </div>
             <div className="card card-padded">
               <div className="section-label" style={{ marginBottom: 12 }}>Revenue Trend (Last 6 Months)</div>
-              <div style={{ display: "flex", alignItems: "flex-end", gap: 12, height: 120, padding: 12, background: "var(--surface3)", borderRadius: "var(--radius)" }}>
+              <div style={{ display: "flex", alignItems: "flex-end", gap: 12, height: 120, padding: 12, background: "var(--surface3)", border: "1px solid var(--border)", boxShadow: "0 2px 4px rgba(0,0,0,0.02)", borderRadius: "var(--radius)" }}>
                 {[
                   { month: "Aug", value: 35 },
                   { month: "Sep", value: 42 },
@@ -1923,7 +2170,7 @@ function PaymentPlanModal({
             </div>
           </div>
           {totalAmount && installments && (
-            <div style={{ padding: 12, borderRadius: "var(--radius)", background: "var(--surface3)", marginBottom: 12 }}>
+            <div style={{ padding: 12, borderRadius: "var(--radius)", background: "var(--surface3)", border: "1px solid var(--border)", boxShadow: "0 2px 4px rgba(0,0,0,0.02)", marginBottom: 12 }}>
               <div style={{ fontSize: "var(--font-xs)", color: "var(--muted)" }}>Monthly Installment</div>
               <div style={{ fontSize: "var(--font-md)", fontWeight: 700, color: "var(--accent)" }}>₹{(parseFloat(totalAmount) / parseInt(installments)).toFixed(2)}</div>
             </div>
@@ -1961,7 +2208,7 @@ export function PatientPortalPage({ patients, onSelectPatient }: { patients: Pat
 
   return (
     <div style={{ padding: 24, maxWidth: 1000 }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20, flexWrap: "wrap", gap: 12 }}>
         <h2 style={{ fontSize: "var(--font-xl)", fontWeight: 800, margin: 0 }}>Patient Portal</h2>
       </div>
 
@@ -2031,30 +2278,47 @@ export function PatientPortalPage({ patients, onSelectPatient }: { patients: Pat
                   <button className="btn btn-primary" onClick={() => setShowBookingModal(true)}>Book Now</button>
                 </div>
               ) : (
-                <div className="card" style={{ overflow: "hidden" }}>
-                  <div className="tbl-container">
-                  <table className="tbl">
-                    <thead>
-                      <tr><th>Date & Time</th><th>Doctor</th><th>Type</th><th>Status</th></tr>
-                    </thead>
-                    <tbody>
-                      {myAppointments.map((p) => (
-                        <tr key={p.id} className="tbl-row">
-                          <td>
+                <>
+                  <div className="card desktop-only" style={{ overflow: "hidden" }}>
+                    <div className="tbl-container">
+                    <table className="tbl">
+                      <thead>
+                        <tr><th>Date & Time</th><th>Doctor</th><th>Type</th><th>Status</th></tr>
+                      </thead>
+                      <tbody>
+                        {myAppointments.map((p) => (
+                          <tr key={p.id} className="tbl-row">
+                            <td>
+                              <div style={{ fontWeight: 600, fontSize: "var(--font-sm)" }}>{fmtDate(p.nextAppointment)}</div>
+                              <div style={{ fontSize: "var(--font-xs)", color: "var(--muted)" }}>{new Date(p.nextAppointment!).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}</div>
+                            </td>
+                            <td style={{ fontSize: "var(--font-sm)" }}>{p.doctor}</td>
+                            <td style={{ fontSize: "var(--font-sm)", color: "var(--muted)" }}>Consultation</td>
+                            <td>
+                              <span className="tag" style={{ background: "var(--green-bg)", color: "var(--green)" }}>Scheduled</span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    </div>
+                  </div>
+                  <div className="mobile-only-block" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                    {myAppointments.map((p) => (
+                      <div key={p.id} className="card card-padded">
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
+                          <div>
                             <div style={{ fontWeight: 600, fontSize: "var(--font-sm)" }}>{fmtDate(p.nextAppointment)}</div>
                             <div style={{ fontSize: "var(--font-xs)", color: "var(--muted)" }}>{new Date(p.nextAppointment!).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}</div>
-                          </td>
-                          <td style={{ fontSize: "var(--font-sm)" }}>{p.doctor}</td>
-                          <td style={{ fontSize: "var(--font-sm)", color: "var(--muted)" }}>Consultation</td>
-                          <td>
-                            <span className="tag" style={{ background: "var(--green-bg)", color: "var(--green)" }}>Scheduled</span>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                          </div>
+                          <span className="tag" style={{ background: "var(--green-bg)", color: "var(--green)" }}>Scheduled</span>
+                        </div>
+                        <div style={{ fontSize: "var(--font-sm)", marginBottom: 4 }}>Doctor: {p.doctor}</div>
+                        <div style={{ fontSize: "var(--font-sm)", color: "var(--muted)" }}>Consultation</div>
+                      </div>
+                    ))}
                   </div>
-                </div>
+                </>
               )}
             </div>
           )}
@@ -2086,32 +2350,55 @@ export function PatientPortalPage({ patients, onSelectPatient }: { patients: Pat
                   <div style={{ fontSize: "var(--font-md)", color: "var(--muted)" }}>No lab results available</div>
                 </div>
               ) : (
-                <div className="card" style={{ overflow: "hidden" }}>
-                  <div className="tbl-container">
-                  <table className="tbl">
-                    <thead>
-                      <tr><th>Test Name</th><th>LOINC Code</th><th>Date</th><th>Result</th><th>Reference Range</th><th>Status</th><th>Ordered By</th></tr>
-                    </thead>
-                    <tbody>
-                      {myLabResults.map((l: any) => (
-                        <tr key={l.id} className="tbl-row">
-                          <td style={{ fontWeight: 600, fontSize: "var(--font-sm)" }}>{l.testName}</td>
-                          <td style={{ fontSize: "var(--font-xs)", color: "var(--muted)" }}>{l.loincCode || "—"}</td>
-                          <td style={{ fontSize: "var(--font-sm)", color: "var(--muted)" }}>{fmtDate(l.testDate)}</td>
-                          <td style={{ fontSize: "var(--font-sm)" }}>{l.result} {l.unit}</td>
-                          <td style={{ fontSize: "var(--font-xs)", color: "var(--muted)" }}>{l.referenceRange}</td>
-                          <td>
-                            <span className="tag" style={{ background: l.status === "Critical" ? "var(--red-bg)" : l.status === "Abnormal" ? "var(--amber-bg)" : l.status === "Completed" ? "var(--green-bg)" : "var(--surface3)", color: l.status === "Critical" ? "var(--red)" : l.status === "Abnormal" ? "var(--amber)" : l.status === "Completed" ? "var(--green)" : "var(--muted)" }}>
-                              {l.status}
-                            </span>
-                          </td>
-                          <td style={{ fontSize: "var(--font-xs)", color: "var(--muted)" }}>{l.orderedBy || "—"}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                <>
+                  <div className="card desktop-only" style={{ overflow: "hidden" }}>
+                    <div className="tbl-container">
+                    <table className="tbl">
+                      <thead>
+                        <tr><th>Test Name</th><th>LOINC Code</th><th>Date</th><th>Result</th><th>Reference Range</th><th>Status</th><th>Ordered By</th></tr>
+                      </thead>
+                      <tbody>
+                        {myLabResults.map((l: any) => (
+                          <tr key={l.id} className="tbl-row">
+                            <td style={{ fontWeight: 600, fontSize: "var(--font-sm)" }}>{l.testName}</td>
+                            <td style={{ fontSize: "var(--font-xs)", color: "var(--muted)" }}>{l.loincCode || "—"}</td>
+                            <td style={{ fontSize: "var(--font-sm)", color: "var(--muted)" }}>{fmtDate(l.testDate)}</td>
+                            <td style={{ fontSize: "var(--font-sm)" }}>{l.result} {l.unit}</td>
+                            <td style={{ fontSize: "var(--font-xs)", color: "var(--muted)" }}>{l.referenceRange}</td>
+                            <td>
+                              <span className="tag" style={{ background: l.status === "Critical" ? "var(--red-bg)" : l.status === "Abnormal" ? "var(--amber-bg)" : l.status === "Completed" ? "var(--green-bg)" : "var(--surface3)", color: l.status === "Critical" ? "var(--red)" : l.status === "Abnormal" ? "var(--amber)" : l.status === "Completed" ? "var(--green)" : "var(--muted)" }}>
+                                {l.status}
+                              </span>
+                            </td>
+                            <td style={{ fontSize: "var(--font-xs)", color: "var(--muted)" }}>{l.orderedBy || "—"}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    </div>
                   </div>
-                </div>
+                  <div className="mobile-only-block" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                    {myLabResults.map((l: any) => (
+                      <div key={l.id} className="card card-padded">
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
+                          <div>
+                            <div style={{ fontWeight: 600, fontSize: "var(--font-sm)" }}>{l.testName}</div>
+                            <div style={{ fontSize: "var(--font-xs)", color: "var(--muted)" }}>LOINC: {l.loincCode || "—"}</div>
+                          </div>
+                          <span className="tag" style={{ background: l.status === "Critical" ? "var(--red-bg)" : l.status === "Abnormal" ? "var(--amber-bg)" : l.status === "Completed" ? "var(--green-bg)" : "var(--surface3)", color: l.status === "Critical" ? "var(--red)" : l.status === "Abnormal" ? "var(--amber)" : l.status === "Completed" ? "var(--green)" : "var(--muted)" }}>
+                            {l.status}
+                          </span>
+                        </div>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                          <div style={{ fontSize: "var(--font-sm)", color: "var(--muted)" }}>{fmtDate(l.testDate)}</div>
+                          <div style={{ fontSize: "var(--font-sm)", fontWeight: 600 }}>{l.result} {l.unit}</div>
+                        </div>
+                        <div style={{ fontSize: "var(--font-xs)", color: "var(--muted)", marginBottom: 4 }}>Ref: {l.referenceRange}</div>
+                        <div style={{ fontSize: "var(--font-xs)", color: "var(--muted)" }}>Ordered by: {l.orderedBy || "—"}</div>
+                      </div>
+                    ))}
+                  </div>
+                </>
               )}
 
               {/* Lab Reference Information */}
@@ -2182,7 +2469,7 @@ export function PatientPortalPage({ patients, onSelectPatient }: { patients: Pat
                   </div>
                   <div className="field-group" style={{ marginBottom: 12 }}>
                     <label className="field-label">Pre-Visit Preparation</label>
-                    <div style={{ padding: 12, borderRadius: "var(--radius)", background: "var(--surface3)", fontSize: "var(--font-xs)", color: "var(--muted)" }}>
+                    <div style={{ padding: 12, borderRadius: "var(--radius)", background: "var(--surface3)", border: "1px solid var(--border)", boxShadow: "0 2px 4px rgba(0,0,0,0.02)", fontSize: "var(--font-xs)", color: "var(--muted)" }}>
                       <div style={{ marginBottom: 4 }}>• Bring current medications and dosages</div>
                       <div style={{ marginBottom: 4 }}>• Bring recent lab results if available</div>
                       <div style={{ marginBottom: 4 }}>• List of current symptoms and duration</div>
@@ -2435,11 +2722,11 @@ END OF REPORT
   }
 
   return (
-    <div style={{ padding: 24, width: "100%" }}>
+    <div style={{ padding: 24, width: "100%" }} className="page-container">
       {rptToast && <DemoToast message={rptToast} onDismiss={() => {}} />}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
-        <h2 style={{ fontSize: "var(--font-xl)", fontWeight: 800, margin: 0 }}>Reports & Analytics</h2>
-        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20, flexWrap: "wrap", gap: 12 }} className="page-header">
+        <h2 style={{ fontSize: "var(--font-xl)", fontWeight: 800, margin: 0 }}>Reports &amp; Analytics</h2>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }} className="page-header-actions">
 
           {/* PDF dropdown */}
           <div style={{ position: "relative" }}>
@@ -2535,17 +2822,7 @@ END OF REPORT
         </div>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, marginBottom: 24 }} className="desktop-only">
-        <StatCard label="Total Patients"       value={stats.total}          color="var(--accent)" icon="ti-users"              bg="var(--accent-soft)" />
-        <StatCard label="Active Patients"      value={stats.active}         color="var(--green)"  icon="ti-activity"           bg="var(--green-bg)" />
-        <StatCard label="Critical Alerts"      value={stats.criticalAlerts} color="var(--red)"    icon="ti-alert-triangle"     bg="var(--red-bg)" />
-        <StatCard label="Follow-Up Due"        value={stats.followUpDue}    color="var(--amber)"  icon="ti-clock"              bg="var(--amber-bg)" />
-        <StatCard label="Insurance Expiring"   value={stats.insExpiring}    color="var(--amber)"  icon="ti-shield-exclamation" bg="var(--amber-bg)" />
-        <StatCard label="New Patients"         value={stats.newPatients}    color="var(--blue)"   icon="ti-user-plus"          bg="var(--blue-bg)" />
-      </div>
-
-      {/* Mobile version - 2 column grid */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 12, marginBottom: 24 }} className="mobile-only">
+      <div className="stat-cards-grid-3" style={{ marginBottom: 24 }}>
         <StatCard label="Total Patients"       value={stats.total}          color="var(--accent)" icon="ti-users"              bg="var(--accent-soft)" />
         <StatCard label="Active Patients"      value={stats.active}         color="var(--green)"  icon="ti-activity"           bg="var(--green-bg)" />
         <StatCard label="Critical Alerts"      value={stats.criticalAlerts} color="var(--red)"    icon="ti-alert-triangle"     bg="var(--red-bg)" />
@@ -2715,9 +2992,17 @@ END OF REPORT
       </div>
 
       {/* Monthly Trends */}
-      <div className="section-label" style={{ marginBottom: 16 }}>Monthly Clinical Trends</div>
-      <div className="card card-padded" style={{ marginBottom: 24 }}>
-        <TrendChart data={generateTrendData(patients)} />
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
+        <div style={{ width: 44, height: 44, borderRadius: "12px", background: "linear-gradient(135deg, var(--blue-bg), transparent)", border: "1px solid var(--blue-border)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <i className="ti ti-chart-area-line" style={{ fontSize: 24, color: "var(--blue)" }} />
+        </div>
+        <div>
+          <div style={{ fontSize: "var(--font-lg)", fontWeight: 700, letterSpacing: "-0.01em" }}>Monthly Clinical Trends</div>
+          <div style={{ fontSize: "var(--font-sm)", color: "var(--muted)", marginTop: 2 }}>Analysis of patient visits and clinical activities</div>
+        </div>
+      </div>
+      <div style={{ marginBottom: 32 }}>
+        <TrendChart data={generateTrendData(patients, 'registrations')} />
       </div>
 
       {/* Clinical Outcomes */}
@@ -2762,9 +3047,17 @@ END OF REPORT
       </div>
 
       {/* Monthly Trends */}
-      <div className="card card-padded" style={{ marginTop: 16 }}>
-        <div className="section-label" style={{ marginBottom: 12 }}>Patient Registration Trend (Last 6 Months)</div>
-        <TrendChart data={generateTrendData(patients)} />
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20, marginTop: 40 }}>
+        <div style={{ width: 44, height: 44, borderRadius: "12px", background: "linear-gradient(135deg, var(--green-bg), transparent)", border: "1px solid var(--green-border)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <i className="ti ti-user-plus" style={{ fontSize: 24, color: "var(--green)" }} />
+        </div>
+        <div>
+          <div style={{ fontSize: "var(--font-lg)", fontWeight: 700, letterSpacing: "-0.01em" }}>Patient Registration Trend</div>
+          <div style={{ fontSize: "var(--font-sm)", color: "var(--muted)", marginTop: 2 }}>New patient onboarding over the last 6 months</div>
+        </div>
+      </div>
+      <div style={{ marginBottom: 32 }}>
+        <TrendChart data={generateTrendData(patients, 'registrations')} />
       </div>
     </div>
   );
@@ -2855,47 +3148,73 @@ function PieChart({ data }: { data: { label: string; value: number; color: strin
   );
 }
 
-function generateTrendData(patients: Patient[]) {
+function generateTrendData(patients: Patient[], type: 'registrations' | 'visits' = 'registrations') {
   const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun"];
-  const currentMonth = new Date().getMonth();
-  const data = months.map((month, index) => {
-    const monthIndex = (currentMonth - 5 + index + 12) % 12;
-    const count = patients.filter(p => {
-      if (!p.registrationDate) return false;
-      const regDate = new Date(p.registrationDate);
-      return regDate.getMonth() === monthIndex;
+  // Set current month to June for demo purposes so it aligns with sample data, or use current
+  const currentMonth = 5; // June is 5 (0-indexed)
+  
+  return months.map((month, index) => {
+    const monthIndex = index; // Jan=0, Feb=1...
+    
+    // Fallback pseudo-random baseline so chart always looks nice for demo
+    let count = type === 'visits' ? (20 + index * 5) : (5 + index * 2);
+    
+    // Add real data if available
+    count += patients.filter(p => {
+      const dateStr = type === 'visits' ? p.lastVisit : p.createdAt;
+      if (!dateStr) return false;
+      const date = new Date(dateStr);
+      return date.getMonth() === monthIndex;
     }).length;
+
     return { month, value: count };
   });
-  return data;
 }
 
 function TrendChart({ data }: { data: { month: string; value: number }[] }) {
   const maxValue = Math.max(...data.map(d => d.value), 1);
   return (
-    <div style={{ display: "flex", alignItems: "flex-end", gap: 16, height: 150, padding: 16, background: "var(--surface3)", borderRadius: "var(--radius)" }}>
+    <div style={{ 
+      display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 12, 
+      height: 220, padding: "30px 20px 20px", 
+      background: "linear-gradient(to bottom, #131726, #0c0f1a)", 
+      border: "1px solid rgba(255,255,255,0.05)", 
+      boxShadow: "inset 0 1px 0 rgba(255,255,255,0.05)", 
+      borderRadius: "var(--radius-lg)",
+      position: "relative", overflow: "hidden"
+    }}>
+      {/* Grid lines */}
+      <div style={{ position: "absolute", inset: "0 20px 40px", display: "flex", flexDirection: "column", justifyContent: "space-between", pointerEvents: "none", zIndex: 0 }}>
+        {[...Array(4)].map((_, i) => (
+          <div key={i} style={{ borderTop: "1px dashed rgba(255,255,255,0.05)", width: "100%", height: 1 }} />
+        ))}
+      </div>
+
       {data.map((item, index) => (
-        <div key={item.month} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
+        <div key={item.month} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 10, zIndex: 1 }}>
           <div style={{ 
-            width: "100%", 
+            width: "100%", maxWidth: 64, 
             height: `${(item.value / maxValue) * 100}%`, 
-            background: "linear-gradient(180deg, var(--accent) 0%, var(--accent-hover) 100%)", 
+            background: "linear-gradient(180deg, #60a5fa 0%, #3b82f6 100%)", 
             borderRadius: "6px 6px 0 0", 
             minHeight: 4,
-            transition: "height 0.5s ease",
-            position: "relative"
+            transition: "height 0.8s cubic-bezier(0.4, 0, 0.2, 1)",
+            position: "relative",
+            boxShadow: "0 0 20px rgba(59, 130, 246, 0.2)"
           }}>
             <span style={{ 
               position: "absolute", 
-              top: -20, 
+              top: -24, 
               left: "50%", 
               transform: "translateX(-50%)", 
-              fontSize: "var(--font-xs)", 
-              fontWeight: 600,
-              color: "var(--accent)"
+              fontSize: "var(--font-sm)", 
+              fontWeight: 800,
+              color: "#bfdbfe"
             }}>{item.value}</span>
+            {/* Glossy overlay */}
+            <div style={{ position: "absolute", inset: 0, background: "linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.2) 20%, rgba(255,255,255,0) 100%)", borderRadius: "inherit" }} />
           </div>
-          <span style={{ fontSize: "var(--font-xs)", color: "var(--muted)", fontWeight: 500 }}>{item.month}</span>
+          <span style={{ fontSize: "var(--font-xs)", color: "#9ca3af", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em" }}>{item.month}</span>
         </div>
       ))}
     </div>
@@ -3019,17 +3338,30 @@ export function SettingsPage({
         </button>
       </div>
 
-      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-        <SettingRow
-          icon="ti-moon"
+      <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+        
+        {/* App Preferences */}
+        <div>
+          <div className="section-label" style={{ marginBottom: 12 }}>App Preferences</div>
+          <div className="card" style={{ padding: 0, overflow: "hidden" }}>
+            <SettingRow
+              icon="ti-moon"
+              label="Dark Mode"
+              description="Switch between light and dark theme"
           label="Dark Mode"
           description="Switch between light and dark theme"
         >
           <ToggleSwitch on={dark} onToggle={() => setDark(!dark)} />
         </SettingRow>
+          </div>
+        </div>
 
-        <SettingRow
-          icon="ti-user-shield"
+        {/* Access Control */}
+        <div>
+          <div className="section-label" style={{ marginBottom: 12 }}>Access Control</div>
+          <div className="card" style={{ padding: 0, overflow: "hidden" }}>
+            <SettingRow
+              icon="ti-user-shield"
           label="Current Role"
           description="Simulates role-based access control"
         >
@@ -3038,9 +3370,11 @@ export function SettingsPage({
             <option value="doctor">Doctor</option>
             <option value="admin">Admin</option>
           </select>
-        </SettingRow>
+            </SettingRow>
+          </div>
+        </div>
 
-        <div className="card card-padded" style={{ overflowX: "auto" }}>
+        <div className="card card-padded desktop-only" style={{ overflowX: "auto" }}>
           <div className="section-label" style={{ marginBottom: 10 }}>Role Permissions</div>
           <div className="tbl-container" style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
           <table className="tbl" style={{ minWidth: 320, width: "100%" }}>
@@ -3073,9 +3407,36 @@ export function SettingsPage({
           </table>
           </div>
         </div>
+        <div className="card card-padded mobile-only-block" style={{ overflowX: "auto" }}>
+          <div className="section-label" style={{ marginBottom: 10 }}>Role Permissions</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            {[
+              ["View Medical Info",    false, true,  true],
+              ["View Billing",         true,  false, true],
+              ["Edit Patient",         true,  true,  true],
+              ["Delete Document",      false, false, true],
+              ["Edit Medical Alerts",  false, true,  true],
+              ["View Audit Log",       false, false, true],
+              ["Delete Patient",       false, false, true],
+            ].map(([perm, rec, doc, adm]) => (
+              <div key={perm as string} style={{ borderBottom: "1px solid var(--border)", paddingBottom: 12, marginBottom: 4 }}>
+                <div style={{ fontSize: "var(--font-sm)", fontWeight: 600, marginBottom: 8 }}>{perm as string}</div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, textAlign: "center" }}>
+                  <div><div style={{ fontSize: "var(--font-xs)", color: "var(--muted)", marginBottom: 4 }}>Rec.</div><PermDot on={rec as boolean} /></div>
+                  <div><div style={{ fontSize: "var(--font-xs)", color: "var(--muted)", marginBottom: 4 }}>Doc.</div><PermDot on={doc as boolean} /></div>
+                  <div><div style={{ fontSize: "var(--font-xs)", color: "var(--muted)", marginBottom: 4 }}>Admin</div><PermDot on={adm as boolean} /></div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
 
-        <SettingRow
-          icon="ti-database"
+        {/* System Status */}
+        <div>
+          <div className="section-label" style={{ marginBottom: 12 }}>System Status</div>
+          <div className="card" style={{ padding: 0, overflow: "hidden" }}>
+            <SettingRow
+              icon="ti-database"
           label="Data Persistence"
           description="Patient data is saved to localStorage and survives page refresh"
         >
@@ -3083,16 +3444,17 @@ export function SettingsPage({
             <i className="ti ti-circle-check" style={{ fontSize: 10 }} /> Active
           </span>
         </SettingRow>
-
-        <SettingRow
-          icon="ti-shield-lock"
+            <SettingRow
+              icon="ti-shield-lock"
           label="Security Note"
           description="This is a frontend demo. Encryption requires production backend. A compliance review is required before real clinic use."
         >
           <span className="badge" style={{ background: "var(--amber-bg)", color: "var(--amber)", border: "1px solid var(--amber-border)" }}>
             Demo Mode
-          </span>
-        </SettingRow>
+            </span>
+          </SettingRow>
+          </div>
+        </div>
 
         {/* Production Security Checklist */}
         <div className="card card-padded" style={{ marginTop: 16 }}>
@@ -3100,36 +3462,36 @@ export function SettingsPage({
             <i className="ti ti-shield-check" style={{ marginRight: 4 }} />
             Production Security Checklist — Demo Preview
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 280px), 1fr))", gap: 12 }}>
-            <div style={{ padding: 12, borderRadius: "var(--radius)", background: "var(--surface3)" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 320px), 1fr))", gap: 16 }}>
+            <div style={{ padding: 12, borderRadius: "var(--radius)", background: "var(--surface3)", border: "1px solid var(--border)", boxShadow: "0 2px 4px rgba(0,0,0,0.02)" }}>
               <div style={{ fontSize: "var(--font-sm)", fontWeight: 600, marginBottom: 4 }}>Audit Logging</div>
               <div style={{ fontSize: "var(--font-xs)", color: "var(--muted)" }}>Patient access, modifications, and views are logged locally with timestamps for demo purposes</div>
               <span className="badge" style={{ background: "var(--green-bg)", color: "var(--green)", border: "1px solid var(--green-border)", marginTop: 8, display: "inline-block" }}>
                 <i className="ti ti-check" style={{ fontSize: 10 }} /> Audit Logging Demo Enabled
               </span>
             </div>
-            <div style={{ padding: 12, borderRadius: "var(--radius)", background: "var(--surface3)" }}>
+            <div style={{ padding: 12, borderRadius: "var(--radius)", background: "var(--surface3)", border: "1px solid var(--border)", boxShadow: "0 2px 4px rgba(0,0,0,0.02)" }}>
               <div style={{ fontSize: "var(--font-sm)", fontWeight: 600, marginBottom: 4 }}>Access Controls</div>
               <div style={{ fontSize: "var(--font-xs)", color: "var(--muted)" }}>Role-based access simulation showing how permissions would differ by role</div>
               <span className="badge" style={{ background: "var(--green-bg)", color: "var(--green)", border: "1px solid var(--green-border)", marginTop: 8, display: "inline-block" }}>
                 <i className="ti ti-check" style={{ fontSize: 10 }} /> Demo RBAC
               </span>
             </div>
-            <div style={{ padding: 12, borderRadius: "var(--radius)", background: "var(--surface3)" }}>
+            <div style={{ padding: 12, borderRadius: "var(--radius)", background: "var(--surface3)", border: "1px solid var(--border)", boxShadow: "0 2px 4px rgba(0,0,0,0.02)" }}>
               <div style={{ fontSize: "var(--font-sm)", fontWeight: 600, marginBottom: 4 }}>Data Encryption</div>
               <div style={{ fontSize: "var(--font-xs)", color: "var(--muted)" }}>Encryption requires production backend; not implemented in this demo</div>
               <span className="badge" style={{ background: "var(--amber-bg)", color: "var(--amber)", border: "1px solid var(--amber-border)", marginTop: 8, display: "inline-block" }}>
                 <i className="ti ti-alert-triangle" style={{ fontSize: 10 }} /> Encryption Requires Production Backend
               </span>
             </div>
-            <div style={{ padding: 12, borderRadius: "var(--radius)", background: "var(--surface3)" }}>
+            <div style={{ padding: 12, borderRadius: "var(--radius)", background: "var(--surface3)", border: "1px solid var(--border)", boxShadow: "0 2px 4px rgba(0,0,0,0.02)" }}>
               <div style={{ fontSize: "var(--font-sm)", fontWeight: 600, marginBottom: 4 }}>Compliance Review</div>
               <div style={{ fontSize: "var(--font-xs)", color: "var(--muted)" }}>A full compliance review is required before any real clinic use</div>
               <span className="badge" style={{ background: "var(--amber-bg)", color: "var(--amber)", border: "1px solid var(--amber-border)", marginTop: 8, display: "inline-block" }}>
                 <i className="ti ti-alert-triangle" style={{ fontSize: 10 }} /> Compliance Review Required Before Real Clinic Use
               </span>
             </div>
-            <div style={{ padding: 12, borderRadius: "var(--radius)", background: "var(--surface3)" }}>
+            <div style={{ padding: 12, borderRadius: "var(--radius)", background: "var(--surface3)", border: "1px solid var(--border)", boxShadow: "0 2px 4px rgba(0,0,0,0.02)" }}>
               <div style={{ fontSize: "var(--font-sm)", fontWeight: 600, marginBottom: 4 }}>Patient Rights</div>
               <div style={{ fontSize: "var(--font-xs)", color: "var(--muted)" }}>Demo illustration of patient rights workflows: access, amendment, disclosure log</div>
               <span className="badge" style={{ background: "var(--blue-bg)", color: "var(--blue)", border: "1px solid var(--blue-border)", marginTop: 8, display: "inline-block" }}>
@@ -3146,28 +3508,28 @@ export function SettingsPage({
             Clinical Standards — Demo Preview
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 280px), 1fr))", gap: 12 }}>
-            <div style={{ padding: 12, borderRadius: "var(--radius)", background: "var(--surface3)" }}>
+            <div style={{ padding: 12, borderRadius: "var(--radius)", background: "var(--surface3)", border: "1px solid var(--border)", boxShadow: "0 2px 4px rgba(0,0,0,0.02)" }}>
               <div style={{ fontSize: "var(--font-sm)", fontWeight: 600, marginBottom: 4 }}>ICD-10 Coding</div>
               <div style={{ fontSize: "var(--font-xs)", color: "var(--muted)" }}>International Classification of Diseases, 10th Revision for diagnosis coding</div>
               <span className="badge" style={{ background: "var(--blue-bg)", color: "var(--blue)", border: "1px solid var(--blue-border)", marginTop: 8, display: "inline-block" }}>
                 <i className="ti ti-code" style={{ fontSize: 10 }} /> Demo Reference Only
               </span>
             </div>
-            <div style={{ padding: 12, borderRadius: "var(--radius)", background: "var(--surface3)" }}>
+            <div style={{ padding: 12, borderRadius: "var(--radius)", background: "var(--surface3)", border: "1px solid var(--border)", boxShadow: "0 2px 4px rgba(0,0,0,0.02)" }}>
               <div style={{ fontSize: "var(--font-sm)", fontWeight: 600, marginBottom: 4 }}>CPT Coding</div>
               <div style={{ fontSize: "var(--font-xs)", color: "var(--muted)" }}>Current Procedural Terminology for medical procedure coding</div>
               <span className="badge" style={{ background: "var(--blue-bg)", color: "var(--blue)", border: "1px solid var(--blue-border)", marginTop: 8, display: "inline-block" }}>
                 <i className="ti ti-code" style={{ fontSize: 10 }} /> Demo Reference Only
               </span>
             </div>
-            <div style={{ padding: 12, borderRadius: "var(--radius)", background: "var(--surface3)" }}>
+            <div style={{ padding: 12, borderRadius: "var(--radius)", background: "var(--surface3)", border: "1px solid var(--border)", boxShadow: "0 2px 4px rgba(0,0,0,0.02)" }}>
               <div style={{ fontSize: "var(--font-sm)", fontWeight: 600, marginBottom: 4 }}>HL7 / FHIR</div>
               <div style={{ fontSize: "var(--font-xs)", color: "var(--muted)" }}>Health Level 7 Fast Healthcare Interoperability Resources for data exchange</div>
               <span className="badge" style={{ background: "var(--blue-bg)", color: "var(--blue)", border: "1px solid var(--blue-border)", marginTop: 8, display: "inline-block" }}>
                 <i className="ti ti-code" style={{ fontSize: 10 }} /> FHIR/HL7 Future Integration Ready
               </span>
             </div>
-            <div style={{ padding: 12, borderRadius: "var(--radius)", background: "var(--surface3)" }}>
+            <div style={{ padding: 12, borderRadius: "var(--radius)", background: "var(--surface3)", border: "1px solid var(--border)", boxShadow: "0 2px 4px rgba(0,0,0,0.02)" }}>
               <div style={{ fontSize: "var(--font-sm)", fontWeight: 600, marginBottom: 4 }}>Clinical Decision Support</div>
               <div style={{ fontSize: "var(--font-xs)", color: "var(--muted)" }}>Drug interaction checking, allergy alerts, and clinical guideline cues</div>
               <span className="badge" style={{ background: "var(--amber-bg)", color: "var(--amber)", border: "1px solid var(--amber-border)", marginTop: 8, display: "inline-block" }}>
@@ -3181,19 +3543,19 @@ export function SettingsPage({
   );
 }
 
-function SettingRow({ icon, label, description, children }: {
-  icon: string; label: string; description: string; children: React.ReactNode;
+function SettingRow({ icon, label, description, children, isLast }: {
+  icon: string; label: string; description: string; children: React.ReactNode; isLast?: boolean;
 }) {
   return (
-    <div className="card card-padded" style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-      <div style={{ width: 38, height: 38, borderRadius: "var(--radius)", background: "var(--accent-soft)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-        <i className={`ti ${icon}`} style={{ fontSize: 17, color: "var(--accent)" }} />
+    <div style={{ display: "flex", alignItems: "center", gap: 16, padding: "16px", borderBottom: isLast ? "none" : "1px solid var(--border)", flexWrap: "wrap", transition: "background 0.2s" }} className="hover-bg-surface2">
+      <div style={{ width: 42, height: 42, borderRadius: "12px", background: "linear-gradient(135deg, var(--accent-soft), transparent)", border: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, boxShadow: "inset 0 1px 3px rgba(255,255,255,0.1)" }}>
+        <i className={`ti ${icon}`} style={{ fontSize: 20, color: "var(--accent)" }} />
       </div>
       <div style={{ flex: "1 1 160px", minWidth: 0 }}>
-        <div style={{ fontSize: "var(--font-sm)", fontWeight: 600 }}>{label}</div>
-        <div style={{ fontSize: "var(--font-xs)", color: "var(--muted)", marginTop: 2, lineHeight: 1.5 }}>{description}</div>
+        <div style={{ fontSize: "var(--font-base)", fontWeight: 600, letterSpacing: "-0.01em" }}>{label}</div>
+        <div style={{ fontSize: "var(--font-sm)", color: "var(--muted)", marginTop: 4, lineHeight: 1.4 }}>{description}</div>
       </div>
-      <div style={{ flexShrink: 0 }}>{children}</div>
+      <div style={{ flexShrink: 0, minWidth: 80, display: "flex", justifyContent: "flex-end" }}>{children}</div>
     </div>
   );
 }
@@ -3254,7 +3616,7 @@ export function PrintSummaryModal({ patient, onClose }: { patient: Patient; onCl
   if (showPrintView) {
     switch (printType) {
       case "profile":
-        return <PatientProfilePrint patient={patient} />;
+        return <PatientProfilePrint patient={patient} onClose={() => setShowPrintView(false)} />;
       case "prescription":
         return (
           <PrescriptionPrint 
@@ -3267,6 +3629,7 @@ export function PrintSummaryModal({ patient, onClose }: { patient: Patient; onCl
               quantity: "30"
             })) || []}
             doctorName={patient.doctor}
+            onClose={() => setShowPrintView(false)}
           />
         );
       case "report":
@@ -3280,6 +3643,7 @@ export function PrintSummaryModal({ patient, onClose }: { patient: Patient; onCl
               impression: "No acute concerns. Continue current treatment plan.",
               orderedBy: patient.doctor
             }}
+            onClose={() => setShowPrintView(false)}
           />
         );
       case "billing":
@@ -3297,10 +3661,11 @@ export function PrintSummaryModal({ patient, onClose }: { patient: Patient; onCl
             subtotal={270}
             tax={24.30}
             total={294.30}
+            onClose={() => setShowPrintView(false)}
           />
         );
       default:
-        return <PatientProfilePrint patient={patient} />;
+        return <PatientProfilePrint patient={patient} onClose={() => setShowPrintView(false)} />;
     }
   }
 

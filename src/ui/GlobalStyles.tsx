@@ -334,7 +334,7 @@ export default function GlobalStyles({ dark }: GlobalStylesProps) {
 
       /* ── Modal backdrop ── */
       .modal-backdrop {
-        position: fixed; inset: 0; z-index: 1000;
+        position: fixed; inset: 0; z-index: 2000;
         background: rgba(0,0,0,0.55);
         display: flex; align-items: center; justify-content: center;
         padding: 16px; animation: fadeIn 0.15s ease;
@@ -386,9 +386,18 @@ export default function GlobalStyles({ dark }: GlobalStylesProps) {
           width: 100% !important;
           flex: 1 1 auto !important;
         }
-        /* Make stat cards stack on mobile */
-        .stat-card {
-          grid-column: span 2 !important;
+        .grid-4-to-2 { grid-template-columns: repeat(2, 1fr) !important; }
+        /* Stat cards: 2x2 grid on mobile */
+        .stat-cards-grid,
+        .stat-cards-grid-3,
+        .clinical-workflow-grid {
+          grid-template-columns: repeat(2, 1fr) !important;
+        }
+        /* Page container: add bottom padding so content isn't hidden under bottom nav */
+        .page-container {
+          padding-bottom: calc(80px + env(safe-area-inset-bottom)) !important;
+          padding-left: 16px !important;
+          padding-right: 16px !important;
         }
         /* Make workflow indicators stack on mobile */
         .card-padded > div[style*="gridTemplateColumns"] {
@@ -420,6 +429,21 @@ export default function GlobalStyles({ dark }: GlobalStylesProps) {
           right: 0 !important;
           width: 100% !important;
         }
+      }
+
+      /* ── Responsive grid helpers ── */
+      .stat-cards-grid {
+        display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px;
+      }
+      .stat-cards-grid-3 {
+        display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px;
+      }
+      .clinical-workflow-grid {
+        display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px;
+      }
+      /* Page container — desktop has standard padding, mobile overrides below */
+      .page-container {
+        padding: 24px; width: 100%;
       }
 
       /* ── Tabs ── */
@@ -500,6 +524,30 @@ export default function GlobalStyles({ dark }: GlobalStylesProps) {
         .mobile-only { display: flex !important; }
         .mobile-only-block { display: block !important; }
         .crm-root { --font-base: 14px; --font-sm: 13px; --font-xs: 12px; }
+        /* Page header: stack title above buttons on mobile */
+        .page-header {
+          flex-direction: column !important;
+          align-items: flex-start !important;
+          gap: 10px !important;
+          width: 100% !important;
+          min-width: 0 !important;
+          max-width: 100% !important;
+        }
+        /* Page header actions: scroll horizontally so ALL buttons are reachable */
+        .page-header-actions {
+          overflow-x: auto !important;
+          flex-wrap: nowrap !important;
+          width: 100% !important;
+          min-width: 0 !important;
+          max-width: 100% !important;
+          padding-bottom: 4px !important;
+          -webkit-overflow-scrolling: touch !important;
+          scrollbar-width: none !important;
+        }
+        .page-header-actions::-webkit-scrollbar { display: none; }
+        /* Prevent buttons from shrinking inside the scroll row */
+        .page-header-actions .btn,
+        .page-header-actions > div { flex-shrink: 0 !important; }
       }
       @media (min-width: 769px) and (max-width: 1024px) {
         .tablet-only { display: block !important; }
@@ -508,7 +556,7 @@ export default function GlobalStyles({ dark }: GlobalStylesProps) {
       @media (min-width: 769px) {
         .mobile-only { display: none !important; }
         .mobile-only-block { display: none !important; }
-        .desktop-only { display: flex !important; }
+        /* .desktop-only rule removed to prevent breaking grid layouts */
       }
       @media (min-width: 1025px) {
         .lg-only { display: block !important; }

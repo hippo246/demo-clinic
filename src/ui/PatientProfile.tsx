@@ -347,7 +347,7 @@ export default function PatientProfile({
 
       {/* ── Tab Content ── */}
       <div style={{ flex: 1, overflow: "auto", background: "var(--bg)" }}>
-        <div className="fade-in" key={tab} style={{ padding: 16 }}>
+        <div className="fade-in" key={tab} style={{ padding: "20px 24px" }}>
           {tab === "overview"  && <OverviewTab patient={patient} role={role} onVerificationToggle={handleVerificationToggle} snapshot={snapshot} readiness={readiness} onQuickAction={handleQuickAction} />}
           {tab === "timeline"  && <TimelineTab patient={patient} role={role} onAddEvent={handleAddTimelineEvent} onDeleteEvent={handleDeleteTimelineEvent} />}
           {tab === "medical"   && <MedicalHistoryTab patient={patient} role={role} onUpdatePatient={onUpdatePatient} />}
@@ -628,80 +628,95 @@ function TimelineTab({
   }
 
   return (
-    <div style={{ maxWidth: 800 }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
-        <span style={{ fontSize: "var(--font-md)", fontWeight: 700 }}>Clinical Timeline</span>
+    <div style={{ maxWidth: 1000, margin: "0 auto" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <div style={{ width: 40, height: 40, borderRadius: "12px", background: "linear-gradient(135deg, var(--blue-bg), transparent)", border: "1px solid var(--blue-border)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <i className="ti ti-timeline" style={{ fontSize: 20, color: "var(--blue)" }} />
+          </div>
+          <div>
+            <div style={{ fontSize: "var(--font-lg)", fontWeight: 700, letterSpacing: "-0.01em" }}>Clinical Timeline</div>
+            <div style={{ fontSize: "var(--font-sm)", color: "var(--muted)", marginTop: 2 }}>Patient's history of visits, treatments, and events</div>
+          </div>
+        </div>
         {can(role, "editPatient") && (
-          <button className="btn btn-primary" style={{ fontSize: "var(--font-sm)" }} onClick={() => setShowForm(true)}>
-            <i className="ti ti-plus" style={{ fontSize: 13 }} />
+          <button className="btn btn-primary" onClick={() => setShowForm(true)} style={{ padding: "10px 16px" }}>
+            <i className="ti ti-plus" style={{ fontSize: 14 }} />
             Add Event
           </button>
         )}
       </div>
 
       {showForm && (
-        <div className="card card-padded" style={{ marginBottom: 16, border: "1px solid var(--accent)40" }}>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 10 }}>
-            <input
-              type="text"
-              value={form.type}
-              onChange={(e) => setForm({ ...form, type: e.target.value })}
-              placeholder="Event type"
-              style={{ fontSize: "var(--font-sm)" }}
-            />
-            <input
-              type="text"
-              value={form.description}
-              onChange={(e) => setForm({ ...form, description: e.target.value })}
-              placeholder="Description"
-              style={{ fontSize: "var(--font-sm)" }}
-            />
-            <input
-              type="date"
-              value={form.date}
-              onChange={(e) => setForm({ ...form, date: e.target.value })}
-              style={{ fontSize: "var(--font-sm)" }}
-            />
+        <div className="card card-padded fade-in" style={{ marginBottom: 24, background: "var(--surface2)", border: "1px solid var(--border)", boxShadow: "0 4px 12px rgba(0,0,0,0.05)" }}>
+          <div className="section-label" style={{ marginBottom: 12 }}>New Timeline Event</div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 12, marginBottom: 16 }}>
+            <div className="field-group">
+              <label>Event Type</label>
+              <input type="text" value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })} placeholder="e.g. Surgery, Consultation" />
+            </div>
+            <div className="field-group">
+              <label>Description</label>
+              <input type="text" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="Details" />
+            </div>
+            <div className="field-group">
+              <label>Date</label>
+              <input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} />
+            </div>
           </div>
-          <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-            <button className="btn btn-primary" style={{ fontSize: "var(--font-sm)" }} onClick={submit}>Add Event</button>
-            <button className="btn btn-ghost" style={{ fontSize: "var(--font-sm)" }} onClick={() => setShowForm(false)}>Cancel</button>
+          <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+            <button className="btn btn-ghost" onClick={() => setShowForm(false)}>Cancel</button>
+            <button className="btn btn-primary" onClick={submit}>Save Event</button>
           </div>
         </div>
       )}
 
-      <div className="card" style={{ overflow: "hidden" }}>
-        {(patient.timeline || []).length === 0 ? (
-          <div className="empty-state">
-            <i className="ti ti-timeline empty-state-icon" />
-            <div className="empty-state-sub">No timeline events</div>
+      {(patient.timeline || []).length === 0 ? (
+        <div className="empty-state card card-padded" style={{ padding: "60px 20px" }}>
+          <div style={{ width: 64, height: 64, borderRadius: "50%", background: "var(--surface2)", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 16 }}>
+             <i className="ti ti-timeline empty-state-icon" style={{ margin: 0 }} />
           </div>
-        ) : (
-          <table className="tbl">
-            <thead>
-              <tr><th>Date</th><th>Type</th><th>Description</th><th>Actions</th></tr>
-            </thead>
-            <tbody>
-              {(patient.timeline || []).map((ev) => (
-                <tr key={ev.id} className="tbl-row">
-                  <td style={{ fontSize: "var(--font-sm)", fontWeight: 600 }}>
-                    {fmtDate(ev.date)}
-                  </td>
-                  <td style={{ fontSize: "var(--font-sm)" }}>{ev.type}</td>
-                  <td style={{ fontSize: "var(--font-sm)" }}>{ev.description}</td>
-                  <td>
+          <div className="empty-state-sub" style={{ fontSize: "var(--font-base)", color: "var(--text)", fontWeight: 600 }}>No timeline events recorded</div>
+          <div style={{ fontSize: "var(--font-sm)", color: "var(--muted)", marginTop: 4 }}>Add past procedures, diagnoses, or significant medical history here.</div>
+        </div>
+      ) : (
+        <div className="card" style={{ padding: "24px 32px" }}>
+          <div style={{ position: "relative" }}>
+            {/* Vertical Line */}
+            <div style={{ position: "absolute", left: 15, top: 20, bottom: 20, width: 2, background: "var(--border)", zIndex: 0 }} />
+            
+            {(patient.timeline || [])
+              .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+              .map((ev, i) => (
+              <div key={ev.id} style={{ display: "flex", gap: 24, position: "relative", zIndex: 1, marginBottom: i === (patient.timeline?.length || 1) - 1 ? 0 : 32 }} className="fade-in">
+                {/* Node */}
+                <div style={{ width: 32, height: 32, borderRadius: "50%", background: "var(--surface)", border: "2px solid var(--accent)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 4, boxShadow: "0 0 0 4px var(--bg)" }}>
+                  <i className="ti ti-point-filled" style={{ fontSize: 12, color: "var(--accent)" }} />
+                </div>
+                {/* Content */}
+                <div className="hover-bg-surface2" style={{ flex: 1, background: "var(--surface)", border: "1px solid var(--border)", borderRadius: "var(--radius)", padding: 16, transition: "all 0.2s" }}>
+                  <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, marginBottom: 8 }}>
+                    <div>
+                      <div style={{ fontSize: "var(--font-md)", fontWeight: 600, color: "var(--text)" }}>{ev.type}</div>
+                      <div style={{ fontSize: "var(--font-sm)", color: "var(--muted)", marginTop: 4, display: "flex", alignItems: "center", gap: 6 }}>
+                        <i className="ti ti-calendar" style={{ fontSize: 14 }} /> {fmtDate(ev.date)}
+                      </div>
+                    </div>
                     {can(role, "editPatient") && (
-                      <button className="btn-icon" style={{ padding: 4 }} onClick={() => onDeleteEvent(ev.id)}>
-                        <i className="ti ti-trash" style={{ fontSize: 12, color: "var(--red)" }} />
+                      <button className="btn-icon" onClick={() => onDeleteEvent(ev.id)} style={{ color: "var(--muted)" }}>
+                        <i className="ti ti-trash" style={{ fontSize: 16 }} />
                       </button>
                     )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
+                  </div>
+                  <div style={{ fontSize: "var(--font-base)", color: "var(--text)", lineHeight: 1.5, background: "var(--bg)", padding: 12, borderRadius: "var(--radius)", border: "1px solid var(--border)", marginTop: 12 }}>
+                    {ev.description}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -726,9 +741,17 @@ function DocumentsTab({
   }
 
   return (
-    <div style={{ maxWidth: 800 }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
-        <span style={{ fontSize: "var(--font-md)", fontWeight: 700 }}>Documents</span>
+    <div style={{ maxWidth: 1000, margin: "0 auto" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <div style={{ width: 40, height: 40, borderRadius: "12px", background: "linear-gradient(135deg, var(--purple-bg), transparent)", border: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <i className="ti ti-files" style={{ fontSize: 20, color: "var(--purple)" }} />
+          </div>
+          <div>
+            <div style={{ fontSize: "var(--font-lg)", fontWeight: 700, letterSpacing: "-0.01em" }}>Documents</div>
+            <div style={{ fontSize: "var(--font-sm)", color: "var(--muted)", marginTop: 2 }}>Patient records, reports &amp; uploads</div>
+          </div>
+        </div>
         {can(role, "editPatient") && (
           <button className="btn btn-primary" style={{ fontSize: "var(--font-sm)" }} onClick={() => setShowForm(true)}>
             <i className="ti ti-plus" style={{ fontSize: 13 }} /> Add Document
@@ -737,8 +760,9 @@ function DocumentsTab({
       </div>
 
       {showForm && (
-        <div className="card card-padded" style={{ marginBottom: 16, border: "1px solid var(--accent)40" }}>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 10 }}>
+        <div className="card card-padded fade-in" style={{ marginBottom: 24, background: "var(--surface2)", border: "1px solid var(--border)", boxShadow: "0 4px 12px rgba(0,0,0,0.05)" }}>
+          <div className="section-label" style={{ marginBottom: 12 }}>Add New Document</div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 12, marginBottom: 16 }}>
             <select value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })} style={{ fontSize: "var(--font-sm)" }}>
               <option value="">Select type...</option>
               {DOCUMENT_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
@@ -747,19 +771,20 @@ function DocumentsTab({
             <input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} style={{ fontSize: "var(--font-sm)" }} />
           </div>
           <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-            <button className="btn btn-primary" style={{ fontSize: "var(--font-sm)" }} onClick={() => { onAddDoc(form); setShowForm(false); }}>
-              Add
-            </button>
-            <button className="btn btn-ghost" style={{ fontSize: "var(--font-sm)" }} onClick={() => setShowForm(false)}>Cancel</button>
+            <button className="btn btn-primary" onClick={() => { onAddDoc(form); setShowForm(false); }}>Save Document</button>
+            <button className="btn btn-ghost" onClick={() => setShowForm(false)}>Cancel</button>
           </div>
         </div>
       )}
 
-      <div className="card" style={{ overflow: "hidden" }}>
+      <div className="card" style={{ overflow: "hidden", border: "1px solid var(--border)", boxShadow: "0 2px 8px rgba(0,0,0,0.02)" }}>
         {(patient.documents || []).length === 0 ? (
-          <div className="empty-state">
-            <i className="ti ti-files empty-state-icon" />
-            <div className="empty-state-sub">No documents</div>
+          <div className="empty-state" style={{ padding: "60px 20px", flexDirection: "column" }}>
+            <div style={{ width: 64, height: 64, borderRadius: "50%", background: "var(--surface2)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
+              <i className="ti ti-files" style={{ fontSize: 28, color: "var(--muted)" }} />
+            </div>
+            <div style={{ fontSize: "var(--font-base)", fontWeight: 600, color: "var(--text)" }}>No documents uploaded</div>
+            <div className="empty-state-sub" style={{ marginTop: 4 }}>Add reports, prescriptions, and other files here.</div>
           </div>
         ) : (
           <table className="tbl">
@@ -823,9 +848,17 @@ function NotesTab({
   }
 
   return (
-    <div style={{ maxWidth: 800 }}>
+    <div style={{ maxWidth: 1000, margin: "0 auto" }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
-        <span style={{ fontSize: "var(--font-md)", fontWeight: 700 }}>Notes</span>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <div style={{ width: 40, height: 40, borderRadius: "12px", background: "linear-gradient(135deg, var(--amber-bg), transparent)", border: "1px solid var(--amber-border)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <i className="ti ti-notes" style={{ fontSize: 20, color: "var(--amber)" }} />
+          </div>
+          <div>
+            <div style={{ fontSize: "var(--font-lg)", fontWeight: 700, letterSpacing: "-0.01em" }}>Notes</div>
+            <div style={{ fontSize: "var(--font-sm)", color: "var(--muted)", marginTop: 2 }}>Clinical observations and reminders</div>
+          </div>
+        </div>
         {can(role, "editPatient") && (
           <button className="btn btn-primary" style={{ fontSize: "var(--font-sm)" }} onClick={() => setShowForm(true)}>
             <i className="ti ti-plus" style={{ fontSize: 13 }} /> Add Note
@@ -834,8 +867,9 @@ function NotesTab({
       </div>
 
       {showForm && (
-        <div className="card card-padded" style={{ marginBottom: 16, border: "1px solid var(--accent)40" }}>
-          <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
+        <div className="card card-padded fade-in" style={{ marginBottom: 24, background: "var(--surface2)", border: "1px solid var(--border)", boxShadow: "0 4px 12px rgba(0,0,0,0.05)" }}>
+          <div className="section-label" style={{ marginBottom: 12 }}>New Note</div>
+          <div style={{ display: "flex", gap: 6, marginBottom: 12 }}>
             {CATEGORIES.map((c) => (
               <button key={c.id} onClick={() => setCategory(c.id)} style={{
                 padding: "4px 10px", borderRadius: "var(--radius-full)", fontSize: "var(--font-xs)", fontWeight: 600,
@@ -863,17 +897,20 @@ function NotesTab({
 
       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
         {(patient.notes || []).length === 0 ? (
-          <div className="card card-padded">
+          <div className="card card-padded" style={{ padding: "60px 20px", border: "1px solid var(--border)" }}>
             <div className="empty-state">
-              <i className="ti ti-notes empty-state-icon" />
-              <div className="empty-state-sub">No notes yet</div>
+              <div style={{ width: 64, height: 64, borderRadius: "50%", background: "var(--surface2)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
+                <i className="ti ti-notes" style={{ fontSize: 28, color: "var(--muted)" }} />
+              </div>
+              <div style={{ fontSize: "var(--font-base)", fontWeight: 600, color: "var(--text)" }}>No notes recorded</div>
+              <div className="empty-state-sub" style={{ marginTop: 4 }}>Add clinical notes, medication reminders, or follow-up observations.</div>
             </div>
           </div>
         ) : (
           (patient.notes || [])
             .sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0) || new Date(b.date).getTime() - new Date(a.date).getTime())
             .map((n) => (
-              <div key={n.id} className="card card-padded" style={{ borderLeft: `3px solid ${CATEGORIES.find((c) => c.id === n.category)?.color || "var(--border)"}` }}>
+              <div key={n.id} className="card card-padded" style={{ boxShadow: n.pinned ? "0 0 0 2px var(--amber)" : "0 2px 6px rgba(0,0,0,0.03)", transition: "all 0.15s", borderLeft: `3px solid ${CATEGORIES.find((c) => c.id === n.category)?.color || "var(--border)"}` }}>
                 <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8 }}>
                   <p style={{ fontSize: "var(--font-sm)", color: "var(--text)", lineHeight: 1.6, flex: 1 }}>{n.text}</p>
                   <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
@@ -945,8 +982,17 @@ function FollowUpTab({ patient, onUpdate }: { patient: Patient; onUpdate: (u: Pa
   const current = STATUS_OPTIONS.find((s) => s.id === status) || STATUS_OPTIONS[0];
 
   return (
-    <div style={{ maxWidth: 640 }}>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 16 }}>
+    <div style={{ maxWidth: 1000, margin: "0 auto" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 24 }}>
+        <div style={{ width: 40, height: 40, borderRadius: "12px", background: "linear-gradient(135deg, var(--blue-bg), transparent)", border: "1px solid var(--blue-border)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <i className="ti ti-phone-forward" style={{ fontSize: 20, color: "var(--blue)" }} />
+        </div>
+        <div>
+          <div style={{ fontSize: "var(--font-lg)", fontWeight: 700, letterSpacing: "-0.01em" }}>Follow-Up</div>
+          <div style={{ fontSize: "var(--font-sm)", color: "var(--muted)", marginTop: 2 }}>Track outreach status and contact attempts</div>
+        </div>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 12, marginBottom: 20 }}>
         <div className="stat-card">
           <div className="stat-label"><i className="ti ti-calendar" style={{ fontSize: 11, marginRight: 4 }} />Follow-Up Date</div>
           <div className="stat-value" style={{ fontSize: 18 }}>{fmtDate(patient.followUpDate)}</div>
@@ -956,7 +1002,7 @@ function FollowUpTab({ patient, onUpdate }: { patient: Patient; onUpdate: (u: Pa
           <div className="stat-value" style={{ fontSize: 18 }}>{patient.callAttempts || 0}</div>
         </div>
         {patient.followUpReason && (
-          <div className="stat-card" style={{ gridColumn: "1 / -1" }}>
+          <div className="stat-card" style={{ gridColumn: "1 / -1", display: "flex", flexDirection: "column" }}>
             <div className="stat-label">Reason</div>
             <div style={{ fontSize: "var(--font-sm)", marginTop: 4 }}>{patient.followUpReason}</div>
           </div>
@@ -1070,18 +1116,26 @@ function MedicalHistoryTab({ patient, role, onUpdatePatient }: { patient: Patien
   }
 
   return (
-    <div style={{ maxWidth: 900 }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
-        <span style={{ fontSize: "var(--font-md)", fontWeight: 700 }}>Medical History</span>
+    <div style={{ maxWidth: 1000, margin: "0 auto" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <div style={{ width: 40, height: 40, borderRadius: "12px", background: "linear-gradient(135deg, var(--green-bg), transparent)", border: "1px solid var(--green-border)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <i className="ti ti-activity" style={{ fontSize: 20, color: "var(--green)" }} />
+          </div>
+          <div>
+            <div style={{ fontSize: "var(--font-lg)", fontWeight: 700, letterSpacing: "-0.01em" }}>Medical History</div>
+            <div style={{ fontSize: "var(--font-sm)", color: "var(--muted)", marginTop: 2 }}>Comprehensive patient records and conditions</div>
+          </div>
+        </div>
         {can(role, "editPatient") && (
-          <button className="btn btn-primary" style={{ fontSize: "var(--font-sm)" }} onClick={() => setShowAddForm(true)}>
-            <i className="ti ti-plus" style={{ fontSize: 13 }} /> Add Record
+          <button className="btn btn-primary" style={{ padding: "10px 16px" }} onClick={() => setShowAddForm(true)}>
+            <i className="ti ti-plus" style={{ fontSize: 14 }} /> Add Record
           </button>
         )}
       </div>
 
       {/* Section Tabs */}
-      <div style={{ display: "flex", gap: 4, marginBottom: 16, borderBottom: "1px solid var(--border)", overflowX: "auto" }}>
+      <div style={{ display: "flex", gap: 4, marginBottom: 16, borderBottom: "1px solid var(--border)", paddingBottom: 4, scrollbarWidth: "none", overflowX: "auto" }}>
         {[
           { id: "conditions", label: "Conditions", count: medicalConditions.length },
           { id: "surgeries", label: "Surgeries", count: surgeries.length },
@@ -1096,7 +1150,7 @@ function MedicalHistoryTab({ patient, role, onUpdatePatient }: { patient: Patien
             key={section.id}
             onClick={() => { setActiveSection(section.id as any); setShowAddForm(false); }}
             style={{
-              padding: "8px 16px",
+              padding: "10px 16px", borderRadius: "var(--radius) var(--radius) 0 0", margin: "0 2px", transition: "all 0.15s",
               borderBottom: `2px solid ${activeSection === section.id ? "var(--accent)" : "transparent"}`,
               color: activeSection === section.id ? "var(--accent)" : "var(--muted)",
               fontWeight: activeSection === section.id ? 600 : 400,
@@ -1111,7 +1165,7 @@ function MedicalHistoryTab({ patient, role, onUpdatePatient }: { patient: Patien
 
       {/* Add Form */}
       {showAddForm && (
-        <div className="card card-padded" style={{ marginBottom: 16, border: "1px solid var(--accent)40" }}>
+        <div className="card card-padded fade-in" style={{ marginBottom: 24, background: "var(--surface2)", border: "1px solid var(--border)", boxShadow: "0 4px 12px rgba(0,0,0,0.05)" }}>
           <div className="section-label">Add {activeSection === "conditions" ? "Condition" : activeSection === "surgeries" ? "Surgery" : activeSection === "hospitalizations" ? "Hospitalization" : activeSection === "vaccinations" ? "Vaccination" : activeSection === "labresults" ? "Lab Result" : "Imaging Record"}</div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 10 }}>
             {activeSection === "conditions" && (
@@ -1364,7 +1418,7 @@ function MedicalHistoryTab({ patient, role, onUpdatePatient }: { patient: Patien
             <div className="empty-state-sub">Add medical conditions to track patient health</div>
           </div>
         ) : (
-          <div className="card" style={{ overflow: "hidden" }}>
+          <div className="card" style={{ overflow: "hidden", border: "1px solid var(--border)", boxShadow: "0 2px 8px rgba(0,0,0,0.02)" }}>
             <table className="tbl">
               <thead>
                 <tr><th>Condition</th><th>Diagnosed</th><th>Severity</th><th>Status</th><th>Actions</th></tr>
@@ -1393,7 +1447,7 @@ function MedicalHistoryTab({ patient, role, onUpdatePatient }: { patient: Patien
             <div className="empty-state-sub">Add surgical history for comprehensive care</div>
           </div>
         ) : (
-          <div className="card" style={{ overflow: "hidden" }}>
+          <div className="card" style={{ overflow: "hidden", border: "1px solid var(--border)", boxShadow: "0 2px 8px rgba(0,0,0,0.02)" }}>
             <table className="tbl">
               <thead>
                 <tr><th>Surgery</th><th>Date</th><th>Hospital</th><th>Surgeon</th><th>Actions</th></tr>
@@ -1422,7 +1476,7 @@ function MedicalHistoryTab({ patient, role, onUpdatePatient }: { patient: Patien
             <div className="empty-state-sub">Add hospitalization history for complete records</div>
           </div>
         ) : (
-          <div className="card" style={{ overflow: "hidden" }}>
+          <div className="card" style={{ overflow: "hidden", border: "1px solid var(--border)", boxShadow: "0 2px 8px rgba(0,0,0,0.02)" }}>
             <table className="tbl">
               <thead>
                 <tr><th>Reason</th><th>Admission</th><th>Discharge</th><th>Hospital</th><th>Actions</th></tr>
@@ -1451,7 +1505,7 @@ function MedicalHistoryTab({ patient, role, onUpdatePatient }: { patient: Patien
             <div className="empty-state-sub">Track vaccination history for preventive care</div>
           </div>
         ) : (
-          <div className="card" style={{ overflow: "hidden" }}>
+          <div className="card" style={{ overflow: "hidden", border: "1px solid var(--border)", boxShadow: "0 2px 8px rgba(0,0,0,0.02)" }}>
             <table className="tbl">
               <thead>
                 <tr><th>Vaccine</th><th>Date</th><th>Dose</th><th>Next Due</th><th>Actions</th></tr>
@@ -1480,7 +1534,7 @@ function MedicalHistoryTab({ patient, role, onUpdatePatient }: { patient: Patien
             <div className="empty-state-sub">Add lab results to track patient diagnostics</div>
           </div>
         ) : (
-          <div className="card" style={{ overflow: "hidden" }}>
+          <div className="card" style={{ overflow: "hidden", border: "1px solid var(--border)", boxShadow: "0 2px 8px rgba(0,0,0,0.02)" }}>
             <table className="tbl">
               <thead>
                 <tr><th>Test Name</th><th>Date</th><th>Result</th><th>Reference</th><th>Status</th><th>Actions</th></tr>
@@ -1510,7 +1564,7 @@ function MedicalHistoryTab({ patient, role, onUpdatePatient }: { patient: Patien
             <div className="empty-state-sub">Add imaging records for radiology history</div>
           </div>
         ) : (
-          <div className="card" style={{ overflow: "hidden" }}>
+          <div className="card" style={{ overflow: "hidden", border: "1px solid var(--border)", boxShadow: "0 2px 8px rgba(0,0,0,0.02)" }}>
             <table className="tbl">
               <thead>
                 <tr><th>Type</th><th>Body Part</th><th>Date</th><th>Radiologist</th><th>Status</th><th>Actions</th></tr>
@@ -1540,7 +1594,7 @@ function MedicalHistoryTab({ patient, role, onUpdatePatient }: { patient: Patien
             <div className="empty-state-sub">Add medications to track prescriptions</div>
           </div>
         ) : (
-          <div className="card" style={{ overflow: "hidden" }}>
+          <div className="card" style={{ overflow: "hidden", border: "1px solid var(--border)", boxShadow: "0 2px 8px rgba(0,0,0,0.02)" }}>
             <table className="tbl">
               <thead>
                 <tr><th>Drug</th><th>Dosage</th><th>Frequency</th><th>Route</th><th>Period</th><th>Status</th><th>Actions</th></tr>
@@ -1571,7 +1625,7 @@ function MedicalHistoryTab({ patient, role, onUpdatePatient }: { patient: Patien
             <div className="empty-state-sub">Add vital signs to track patient health trends</div>
           </div>
         ) : (
-          <div className="card" style={{ overflow: "hidden" }}>
+          <div className="card" style={{ overflow: "hidden", border: "1px solid var(--border)", boxShadow: "0 2px 8px rgba(0,0,0,0.02)" }}>
             <table className="tbl">
               <thead>
                 <tr><th>Type</th><th>Value</th><th>Unit</th><th>Date</th><th>Trend</th><th>Actions</th></tr>
@@ -1684,7 +1738,7 @@ function ClinicalSupportTab({ patient }: { patient: Patient }) {
   const labAnalysis = analyzeLabResults(patient.labResults || []);
 
   return (
-    <div style={{ maxWidth: 900 }}>
+    <div style={{ width: "100%" }}>
       <div style={{ marginBottom: 24 }}>
         <span style={{ fontSize: "var(--font-md)", fontWeight: 700 }}>Clinical Decision Support</span>
         <div style={{ fontSize: "var(--font-sm)", color: "var(--muted)", marginTop: 4 }}>
@@ -1898,9 +1952,19 @@ function ConsentsTab({ patient, onToggle }: { patient: Patient; onToggle: (key: 
   const allOK  = signed === total;
 
   return (
-    <div style={{ maxWidth: 600 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
-        <div className="stat-card" style={{ flex: 1 }}>
+    <div style={{ maxWidth: 1000, margin: "0 auto" }}>
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexWrap: "wrap", gap: 16, marginBottom: 28 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <div style={{ width: 40, height: 40, borderRadius: "12px", background: "linear-gradient(135deg, var(--green-bg), transparent)", border: "1px solid var(--green-border)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <i className="ti ti-writing-sign" style={{ fontSize: 20, color: "var(--green)" }} />
+          </div>
+          <div>
+            <div style={{ fontSize: "var(--font-lg)", fontWeight: 700, letterSpacing: "-0.01em" }}>Consents</div>
+            <div style={{ fontSize: "var(--font-sm)", color: "var(--muted)", marginTop: 2 }}>Patient authorisations and sign-offs</div>
+          </div>
+        </div>
+        <div className="stat-card" style={{ minWidth: 140 }}>
+          <div className="stat-label">Signed</div>
           <div className="stat-label">Signed</div>
           <div className="stat-value" style={{ color: allOK ? "var(--green)" : "var(--amber)" }}>{signed}/{total}</div>
         </div>
@@ -1914,7 +1978,7 @@ function ConsentsTab({ patient, onToggle }: { patient: Patient; onToggle: (key: 
         </div>
       </div>
 
-      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 440px), 1fr))", gap: 12 }}>
         {CONSENT_TYPES.map((c) => {
           const done = !!consents[c.key];
           return (
@@ -1963,7 +2027,18 @@ function AuditTab({ entries }: { entries: AuditEntry[] }) {
   };
 
   return (
-    <div style={{ maxWidth: 700 }}>
+    <div style={{ maxWidth: 1000, margin: "0 auto" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <div style={{ width: 40, height: 40, borderRadius: "12px", background: "linear-gradient(135deg, var(--surface3), transparent)", border: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <i className="ti ti-history" style={{ fontSize: 20, color: "var(--muted)" }} />
+          </div>
+          <div>
+            <div style={{ fontSize: "var(--font-lg)", fontWeight: 700, letterSpacing: "-0.01em" }}>Audit Log</div>
+            <div style={{ fontSize: "var(--font-sm)", color: "var(--muted)", marginTop: 2 }}>{sorted.length} recorded event{sorted.length !== 1 ? "s" : ""} — all record changes logged automatically</div>
+          </div>
+        </div>
+      </div>
       {sorted.length === 0 ? (
         <div className="empty-state">
           <i className="ti ti-history empty-state-icon" />
@@ -1971,14 +2046,14 @@ function AuditTab({ entries }: { entries: AuditEntry[] }) {
           <div className="empty-state-sub">All changes will be recorded here</div>
         </div>
       ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 1, border: "1px solid var(--border)", borderRadius: "var(--radius-lg)", overflow: "hidden" }}>
+        <div style={{ border: "1px solid var(--border)", borderRadius: "var(--radius-lg)", overflow: "hidden", boxShadow: "0 2px 8px rgba(0,0,0,0.03)" }}>
           {sorted.map((entry, i) => {
             const icon  = AUDIT_ICONS[entry.type] || AUDIT_ICONS.default;
             const color = AUDIT_COLORS[entry.type] || AUDIT_COLORS.default;
             return (
               <div key={entry.id} style={{
                 display: "flex", alignItems: "flex-start", gap: 10,
-                padding: "10px 14px", background: i % 2 === 0 ? "var(--surface)" : "var(--surface2)",
+                padding: "12px 16px", background: i % 2 === 0 ? "var(--surface)" : "var(--surface2)",
                 borderBottom: i < sorted.length - 1 ? "1px solid var(--border)" : "none",
               }}>
                 <div style={{
@@ -2007,51 +2082,150 @@ function AuditTab({ entries }: { entries: AuditEntry[] }) {
 
 // ─── Emergency Modal ──────────────────────────────────────────────────────────
 function EmergencyModal({ patient, onClose }: { patient: Patient; onClose: () => void }) {
+  const criticalAlerts = (patient.alerts || []).filter((a) => (ALERT_SEVERITY as any)[a] === "critical");
+  const activeMeds = patient.medications || [];
+  const activeConditions = (patient.medicalConditions || patient.conditions || []);
+
   return (
     <div className="modal-backdrop">
       <div style={{
         background: "#0c0f1a", border: "2px solid #dc2626", borderRadius: "var(--radius-xl)",
-        width: "100%", maxWidth: 560, overflow: "hidden",
-        boxShadow: "0 0 60px rgba(220,38,38,0.35)", animation: "scaleIn 0.2s ease",
+        width: "100%", maxWidth: 700, overflow: "hidden",
+        boxShadow: "0 0 80px rgba(220,38,38,0.4)", animation: "scaleIn 0.2s ease",
+        maxHeight: "90vh", overflowY: "auto",
       }}>
-        <div style={{ background: "#dc2626", padding: "14px 16px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <i className="ti ti-emergency-bed" style={{ fontSize: 20, color: "#fff" }} />
+        {/* Header */}
+        <div style={{ background: "linear-gradient(135deg, #7f1d1d, #dc2626)", padding: "16px 20px", display: "flex", alignItems: "center", justifyContent: "space-between", position: "sticky", top: 0, zIndex: 2 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <div style={{ width: 44, height: 44, borderRadius: "50%", background: "rgba(255,255,255,0.15)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <i className="ti ti-emergency-bed" style={{ fontSize: 22, color: "#fff" }} />
+            </div>
             <div>
-              <div style={{ fontSize: "var(--font-md)", fontWeight: 800, color: "#fff", letterSpacing: "0.06em" }}>
-                EMERGENCY VIEW
-              </div>
-              <div style={{ fontSize: "var(--font-xs)", color: "#fecaca" }}>
-                {patient.name} · {patient.id}
-              </div>
+              <div style={{ fontSize: "var(--font-xl)", fontWeight: 800, color: "#fff", letterSpacing: "0.04em" }}>EMERGENCY VIEW</div>
+              <div style={{ fontSize: "var(--font-sm)", color: "#fecaca", marginTop: 2 }}>{patient.name} · ID: {patient.id} · Age {patient.age}</div>
             </div>
           </div>
-          <button onClick={onClose} style={{ background: "rgba(255,255,255,0.2)", border: "none", borderRadius: "var(--radius)", padding: "6px 10px", cursor: "pointer", color: "#fff", fontSize: "var(--font-sm)" }}>
+          <button onClick={onClose} style={{ background: "rgba(255,255,255,0.2)", border: "1px solid rgba(255,255,255,0.3)", borderRadius: "var(--radius)", padding: "8px 14px", cursor: "pointer", color: "#fff", fontSize: "var(--font-sm)", fontWeight: 600, display: "flex", alignItems: "center", gap: 6 }}>
             <i className="ti ti-x" style={{ fontSize: 14 }} /> Close
           </button>
         </div>
-        <div style={{ padding: 16, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-          {[
-            { label: "Blood Group",       value: patient.bloodGroup || "Unknown", icon: "ti-droplet",          color: "#ef4444", large: true },
-            { label: "Primary Doctor",    value: patient.doctor || "—",           icon: "ti-stethoscope",      color: "#60a5fa" },
-            { label: "Allergies",         value: patient.allergies || "None known",icon: "ti-alert-triangle",  color: "#f59e0b", warn: !!patient.allergies },
-            { label: "Medications",       value: (patient.medications||[]).join(", ") || "None", icon: "ti-pill", color: "#a78bfa" },
-            { label: "Conditions",        value: (patient.conditions||[]).join(", ") || "None", icon: "ti-heart-rate-monitor", color: "#f97316", warn: (patient.conditions||[]).length > 0 },
-            { label: "Emergency Contact", value: patient.emergencyName || "—",   icon: "ti-phone-call",        color: "#34d399", sub: `${patient.emergencyRelation} · ${patient.emergencyPhone}` },
-          ].map(({ label, value, icon, color, large, warn, sub }) => (
-            <div key={label} style={{
-              background: warn ? "#1c1008" : "#131726",
-              border: `1px solid ${warn ? "#f59e0b30" : "rgba(255,255,255,0.07)"}`,
-              borderRadius: "var(--radius)", padding: "10px 12px",
-            }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 5 }}>
-                <i className={`ti ${icon}`} style={{ fontSize: 12, color }} />
-                <span style={{ fontSize: "var(--font-2xs)", fontWeight: 600, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.06em" }}>{label}</span>
+
+        {/* Critical Alerts Banner */}
+        {criticalAlerts.length > 0 && (
+          <div style={{ background: "#450a0a", borderBottom: "1px solid #7f1d1d", padding: "10px 20px", display: "flex", alignItems: "center", gap: 10 }}>
+            <i className="ti ti-alert-triangle" style={{ fontSize: 16, color: "#f87171", flexShrink: 0 }} />
+            <span style={{ fontSize: "var(--font-sm)", color: "#fca5a5", fontWeight: 700 }}>CRITICAL: </span>
+            <span style={{ fontSize: "var(--font-sm)", color: "#fecaca" }}>{criticalAlerts.join(" · ")}</span>
+          </div>
+        )}
+
+        <div style={{ padding: 20 }}>
+          {/* Top 3 info tiles */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, marginBottom: 16 }}>
+            {[
+              { label: "Blood Group", value: patient.bloodGroup || "Unknown", icon: "ti-droplet", color: "#f87171", large: true },
+              { label: "Primary Doctor", value: patient.doctor || "—", icon: "ti-stethoscope", color: "#60a5fa" },
+              { label: "Gender / Age", value: `${patient.gender || "—"} · ${patient.age} yrs`, icon: "ti-user", color: "#a78bfa" },
+            ].map(({ label, value, icon, color, large }) => (
+              <div key={label} style={{ background: "#131726", border: "1px solid rgba(255,255,255,0.07)", borderRadius: "var(--radius)", padding: "12px 14px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
+                  <i className={`ti ${icon}`} style={{ fontSize: 13, color }} />
+                  <span style={{ fontSize: "var(--font-2xs)", fontWeight: 600, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.06em" }}>{label}</span>
+                </div>
+                <div style={{ fontSize: large ? 28 : 14, fontWeight: large ? 900 : 600, color: large ? color : "#f9fafb", lineHeight: 1.2 }}>{value}</div>
               </div>
-              <div style={{ fontSize: large ? 26 : 13, fontWeight: large ? 800 : 600, color: large ? color : warn ? "#fcd34d" : "#f9fafb", lineHeight: 1.3 }}>{value}</div>
-              {sub && <div style={{ fontSize: "var(--font-xs)", color: "#9ca3af", marginTop: 2 }}>{sub}</div>}
+            ))}
+          </div>
+
+          {/* Allergies — full width prominent */}
+          <div style={{ background: patient.allergies ? "#1c1008" : "#131726", border: `1px solid ${patient.allergies ? "#f59e0b40" : "rgba(255,255,255,0.07)"}`, borderRadius: "var(--radius)", padding: "14px 16px", marginBottom: 12 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+              <i className="ti ti-alert-octagon" style={{ fontSize: 18, color: patient.allergies ? "#f59e0b" : "#6b7280" }} />
+              <span style={{ fontSize: "var(--font-sm)", fontWeight: 700, color: patient.allergies ? "#fcd34d" : "#6b7280", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                {patient.allergies ? "⚠ Known Allergies" : "Allergies"}
+              </span>
             </div>
-          ))}
+            <div style={{ fontSize: 16, fontWeight: 600, color: patient.allergies ? "#fde68a" : "#9ca3af" }}>{patient.allergies || "No known allergies"}</div>
+          </div>
+
+          {/* Conditions + Medications side by side */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
+            <div style={{ background: "#131726", border: "1px solid rgba(255,255,255,0.07)", borderRadius: "var(--radius)", padding: "14px 16px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10 }}>
+                <i className="ti ti-heart-rate-monitor" style={{ fontSize: 14, color: "#f97316" }} />
+                <span style={{ fontSize: "var(--font-xs)", fontWeight: 700, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.06em" }}>Active Conditions ({activeConditions.length})</span>
+              </div>
+              {activeConditions.length === 0 ? (
+                <div style={{ fontSize: "var(--font-sm)", color: "#6b7280" }}>None on record</div>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+                  {(activeConditions as any[]).slice(0, 5).map((c: any, i: number) => (
+                    <div key={i} style={{ fontSize: "var(--font-sm)", color: "#f9fafb", display: "flex", alignItems: "center", gap: 6 }}>
+                      <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#f97316", flexShrink: 0, display: "inline-block" }} />
+                      {typeof c === "string" ? c : c.name}
+                    </div>
+                  ))}
+                  {activeConditions.length > 5 && <div style={{ fontSize: "var(--font-xs)", color: "#6b7280" }}>+{activeConditions.length - 5} more</div>}
+                </div>
+              )}
+            </div>
+
+            <div style={{ background: "#131726", border: "1px solid rgba(255,255,255,0.07)", borderRadius: "var(--radius)", padding: "14px 16px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10 }}>
+                <i className="ti ti-pill" style={{ fontSize: 14, color: "#a78bfa" }} />
+                <span style={{ fontSize: "var(--font-xs)", fontWeight: 700, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.06em" }}>Active Medications ({activeMeds.length})</span>
+              </div>
+              {activeMeds.length === 0 ? (
+                <div style={{ fontSize: "var(--font-sm)", color: "#6b7280" }}>None on record</div>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+                  {(activeMeds as any[]).slice(0, 5).map((m: any, i: number) => (
+                    <div key={i} style={{ fontSize: "var(--font-sm)", color: "#f9fafb", display: "flex", alignItems: "center", gap: 6 }}>
+                      <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#a78bfa", flexShrink: 0, display: "inline-block" }} />
+                      {typeof m === "string" ? m : `${m.name}${m.dosage ? " " + m.dosage : ""}`}
+                    </div>
+                  ))}
+                  {activeMeds.length > 5 && <div style={{ fontSize: "var(--font-xs)", color: "#6b7280" }}>+{activeMeds.length - 5} more</div>}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Emergency Contact */}
+          {(patient.emergencyName || patient.emergencyPhone) && (
+            <div style={{ background: "#0a1f1a", border: "1px solid #065f4640", borderRadius: "var(--radius)", padding: "14px 16px", marginBottom: 12 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
+                <i className="ti ti-phone-call" style={{ fontSize: 14, color: "#34d399" }} />
+                <span style={{ fontSize: "var(--font-xs)", fontWeight: 700, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.06em" }}>Emergency Contact</span>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
+                <div>
+                  <div style={{ fontSize: "var(--font-md)", fontWeight: 700, color: "#f9fafb" }}>{patient.emergencyName || "—"}</div>
+                  <div style={{ fontSize: "var(--font-sm)", color: "#9ca3af", marginTop: 2 }}>
+                    {[patient.emergencyRelation, patient.emergencyPhone].filter(Boolean).join(" · ")}
+                  </div>
+                </div>
+                {patient.emergencyPhone && (
+                  <a href={`tel:${patient.emergencyPhone}`} style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "#065f46", color: "#34d399", border: "1px solid #065f4680", borderRadius: "var(--radius)", padding: "8px 16px", fontSize: "var(--font-sm)", fontWeight: 600, textDecoration: "none" }}>
+                    <i className="ti ti-phone" style={{ fontSize: 14 }} /> Call Now
+                  </a>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Insurance */}
+          {patient.insuranceProvider && (
+            <div style={{ background: "#131726", border: "1px solid rgba(255,255,255,0.07)", borderRadius: "var(--radius)", padding: "12px 16px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
+                <i className="ti ti-shield" style={{ fontSize: 13, color: "#60a5fa" }} />
+                <span style={{ fontSize: "var(--font-xs)", fontWeight: 700, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.06em" }}>Insurance</span>
+              </div>
+              <div style={{ fontSize: "var(--font-sm)", color: "#f9fafb" }}>
+                {patient.insuranceProvider}{patient.insurancePolicy ? ` · ${patient.insurancePolicy}` : ""}
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
